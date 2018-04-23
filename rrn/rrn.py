@@ -152,7 +152,9 @@ class RRN(object):
         self.item_vars = [var for var in t_vars if 'ITEM' in var.name]
 
     def train(self, df):
-        prep = Preprocess(df)
+        raise NotImplementedError
+        
+        '''prep = Preprocess(df)
 
         losses = []
         for epoch in trange(1000):
@@ -161,7 +163,7 @@ class RRN(object):
             # user turn
             loss_, _ = self.sess.run(
                     [self.loss, self.user_optim],
-                    feed_dict={self.})
+                    feed_dict={self.})'''
 
 
     def _get_session(self):
