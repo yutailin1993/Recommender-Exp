@@ -13,7 +13,7 @@ class AutoEncoder(object):
 
     def __init__(
             self, user_num, item_num, mode, with_weights=False,
-            dropout_rate=0.2, lr=1., hidden_units=20, epochs=100,
+            dropout_rate=0.2, lr=0.01, hidden_units=20, epochs=100,
             loss_function='rmse', b1=0.5, optimizer='adagrad'):
         '''
         -- Args --
@@ -106,7 +106,7 @@ class AutoEncoder(object):
                     units=dec_units,
                     activation=tf.nn.sigmoid,
                     kernel_regularizer=tf.contrib.layers.l2_regularizer(0.0003),
-                    name='dec')
+                    name='decode')
 
     def _build_loss(self):
         with tf.variable_scope('loss'):
@@ -116,9 +116,9 @@ class AutoEncoder(object):
 
             elif self.loss_function == 'log_loss':
                 self.loss = tf.reduce_mean(
-                            tf.reduce_sum(-self.target*tf.log(self.decode) - \
-                                    (1-self.target)*tf.log(1-self.decode),
-                                    reduction_indices=1))
+                        tf.reduce_sum(-self.target*tf.log(self.decode) - \
+                                (1-self.target)*tf.log(1-self.decode),
+                                reduction_indices=1))
             else:
                 raise NotImplementedError
 
@@ -138,7 +138,6 @@ class AutoEncoder(object):
         '''
         Initialize optimizer
         '''
-
         if self.optimizer == 'adadelta':
             self.optim = tf.train.AdadeltaOptimizer(self.lr).minimize(self.loss)
         elif self.optimizer == 'gradient':
@@ -169,12 +168,19 @@ class AutoEncoder(object):
                 input_ = [rating[n]]
                 target_ = [rating[n]]
 
-                recon, loss, _ = self.sess.run(
-                        [self.decode, self.loss, self.optim],
+                loss, _ = self.sess.run(
+                        [self.loss, self.optim],
                         feed_dict={
                             self.input: input_,
                             self.target: target_,
                             self.ident: n,
+                        })
+
+                recon = self.decode.eval(
+                        session=self.sess,
+                        feed_dict={
+                            self.input: input_,
+                            self.ident: n
                         })
 
                 total_loss += loss
