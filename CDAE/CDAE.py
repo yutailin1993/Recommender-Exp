@@ -168,21 +168,14 @@ class AutoEncoder(object):
                 input_ = [rating[n]]
                 target_ = [rating[n]]
 
-                loss, _ = self.sess.run(
-                        [self.loss, self.optim],
+                recon, loss, _ = self.sess.run(
+                        [self.decode, self.loss, self.optim],
                         feed_dict={
                             self.input: input_,
                             self.target: target_,
                             self.ident: n,
                         })
-
-                recon = self.decode.eval(
-                        session=self.sess,
-                        feed_dict={
-                            self.input: input_,
-                            self.ident: n
-                        })
-
+                
                 total_loss += loss
                 top5 = get_topN(recon, train_indices[n])
                 ap_at_5.append(avg_precision(top5, test_indices[n]))
