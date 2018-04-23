@@ -63,6 +63,7 @@ class RRN(object):
         self._get_vars()
         self._build_optimizer()
         self._get_session()
+        self._init_vars()
 
     def _build_model(self):
 
