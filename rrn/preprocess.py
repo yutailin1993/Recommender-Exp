@@ -205,3 +205,16 @@ class Preprocess(object):
                 batch_item.append(item)
 
         return batch_item
+
+    def get_latent_vector(self, batch, vectors, phase):
+        batch_vector = []
+        if phase == 'user':
+            for ident in batch:
+                batch_vector.append(vectors[self.user_map[ident]])
+        else:
+            for ident in batch:
+                batch_vector.append(vectors[ident-1])
+
+        batch_vector = np.asarray(batch_vector, dtype=np.float32)
+        return batch_vector
+

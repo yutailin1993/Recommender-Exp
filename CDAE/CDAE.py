@@ -43,7 +43,7 @@ class AutoEncoder(object):
         self.optimizer = optimizer
         self.log = {'train_loss': [], 'ap@5': []}
 
-        if self.mode != ('user' or 'item'):
+        if self.mode != 'user' and self.mode != 'item':
             print (self.mode)
             raise ValueError
 

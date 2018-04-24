@@ -53,14 +53,16 @@ class LSTM(object):
 
 
 class RRN(object):
-    def __init__(self, user_hparas, item_hparas, lr):
+    def __init__(self, user_hparas, item_hparas, lr=0.01):
         self.user_hparas = user_hparas
         self.item_hparas = item_hparas
         self.lr = lr
-        
+        self.log = {'train_loss': []}
+
         self._get_inputs()
         self._build_model()
         self._get_vars()
+        self._get_loss()
         self._build_optimizer()
         self._get_session()
         self._init_vars()
@@ -99,9 +101,28 @@ class RRN(object):
                     self.stationary_state,
                     name='logits')
 
+        # with tf.variable_scope('l2-regularizer'):
+        #     user_reg = tf.add_n([tf.nn.l2_loss(v) for v in self.user_vars])
+        #     item_reg = tf.add_n([tf.nn.l2_loss(v) for v in self.item_vars])
+
+        # with tf.variable_scope('loss'):
+        #     # loss_ = tf.subtract(self.ground_truth, self.logits)
+        #     # self.loss = tf.reduce_sum(tf.square(loss_))
+
+        #     self.loss = tf.sqrt(
+        #             tf.reduce_mean(tf.pow(self.ground_truth-self.logits, 2)) + \
+        #                     0.01 * user_reg + 0.01 * item_reg)
+
+    def _get_loss(self):
+        with tf.variable_scope('l2-regularizer'):
+            user_reg = tf.add_n([tf.nn.l2_loss(v) for v in self.user_vars])
+            item_reg = tf.add_n([tf.nn.l2_loss(v) for v in self.item_vars])
+
         with tf.variable_scope('loss'):
-            loss_ = tf.subtract(self.ground_truth, self.logits)
-            self.loss = tf.reduce_sum(tf.square(loss_))
+
+            self.loss = tf.sqrt(
+                    tf.reduce_mean(tf.pow(self.ground_truth-self.logits, 2)) + \
+                            0.01 * user_reg + 0.01 * item_reg)
 
     def _get_inputs(self):
         with tf.variable_scope('inputs'):
@@ -151,23 +172,44 @@ class RRN(object):
         self.user_vars = [var for var in t_vars if 'USER' in var.name]
         self.item_vars = [var for var in t_vars if 'ITEM' in var.name]
 
-    def train(self, df):
-        raise NotImplementedError
-        
-        '''prep = Preprocess(df)
+    def train(self, df, user_vectors, item_vectors):
+        prep = Preprocess(df)
 
-        losses = []
-        for epoch in trange(1000):
-            user_inputs, item_inputs, ground_truth, _, _ = prep.gen_batch()
+        for epoch in trange(100):
+            loss = 0
+            user_input, item_input, ground_truth, batch_user, batch_item = prep.gen_batch()
+            u_static_vector = prep.get_latent_vector(batch_user, user_vectors, 'user')
+            i_static_vector = prep.get_latent_vector(batch_item, item_vectors, 'item')
 
             # user turn
             loss_, _ = self.sess.run(
                     [self.loss, self.user_optim],
-                    feed_dict={self.})'''
+                    feed_dict={
+                        self.user_input: user_input,
+                        self.item_input: item_input,
+                        self.ground_truth: ground_truth,
+                        self.user_stationary_factor: u_static_vector,
+                        self.item_stationary_factor: i_static_vector,
+                    })
+            loss += loss_
 
+            # item turn
+            loss_, _ = self.sess.run(
+                    [self.loss, self.item_optim],
+                    feed_dict={
+                       self.user_input: user_input,
+                       self.item_input: item_input,
+                       self.ground_truth: ground_truth,
+                       self.user_stationary_factor: u_static_vector,
+                       self.item_stationary_factor: i_static_vector,
+                    })
+            loss += loss_
+
+            self.log['train_loss'].append(loss/2)
 
     def _get_session(self):
         self.sess = tf.Session()
+        tf.summary.FileWriter('logs/', self.sess.graph)
 
     def _init_vars(self):
         self.sess.run(tf.global_variables_initializer())
