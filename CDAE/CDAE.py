@@ -94,7 +94,7 @@ class AutoEncoder(object):
             self.encode = tf.layers.dense(
                     inputs=self.noise_input,
                     units=hidden_units,
-                    kernel_regularizer=tf.contrib.layers.l2_regularizer(0.0003),
+                    kernel_regularizer=tf.contrib.layers.l2_regularizer(0.003),
                     name='encode')
 
             self.code = tf.nn.sigmoid(
@@ -105,7 +105,7 @@ class AutoEncoder(object):
                     inputs=self.code,
                     units=dec_units,
                     activation=tf.nn.sigmoid,
-                    kernel_regularizer=tf.contrib.layers.l2_regularizer(0.0003),
+                    kernel_regularizer=tf.contrib.layers.l2_regularizer(0.003),
                     name='decode')
 
     def _build_loss(self):

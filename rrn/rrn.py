@@ -38,7 +38,8 @@ class LSTM(object):
     def _build_model(self):
         with tf.variable_scope('LSTM_'+self.hparas['NAME']):
             LSTMCell = tf.contrib.rnn.BasicLSTMCell(
-                    self.hparas['LSTM_UNITS'])
+                    self.hparas['LSTM_UNITS'],
+                    activation=tf.nn.relu)
             initial_state = LSTMCell.zero_state(
                     self.hparas['BATCH_SIZE'], dtype=tf.float32)
             output, last_state = tf.nn.dynamic_rnn(
@@ -53,11 +54,16 @@ class LSTM(object):
 
 
 class RRN(object):
-    def __init__(self, user_hparas, item_hparas, lr=0.01):
+    def __init__(
+            self, user_hparas, item_hparas, lr=0.01, epochs=100,
+            loss_function='rmse'):
         self.user_hparas = user_hparas
         self.item_hparas = item_hparas
         self.lr = lr
+        self.epochs = epochs
+        self.loss_function = loss_function
         self.log = {'train_loss': []}
+        self.turn = 1.  # 1 for 'user' turn, 0 for 'item' turn
 
         self._get_inputs()
         self._build_model()
@@ -101,6 +107,8 @@ class RRN(object):
                     self.stationary_state,
                     name='logits')
 
+            # self.logits = tf.nn.sigmoid(logits)
+
         # with tf.variable_scope('l2-regularizer'):
         #     user_reg = tf.add_n([tf.nn.l2_loss(v) for v in self.user_vars])
         #     item_reg = tf.add_n([tf.nn.l2_loss(v) for v in self.item_vars])
@@ -119,10 +127,17 @@ class RRN(object):
             item_reg = tf.add_n([tf.nn.l2_loss(v) for v in self.item_vars])
 
         with tf.variable_scope('loss'):
-
-            self.loss = tf.sqrt(
-                    tf.reduce_mean(tf.pow(self.ground_truth-self.logits, 2)) + \
-                            0.01 * user_reg + 0.01 * item_reg)
+            if self.loss_function == 'rmse':
+                self.loss = tf.sqrt(
+                        tf.reduce_mean(tf.pow(self.ground_truth-self.logits, 2))) + \
+                                0.01 * self.turn * user_reg + \
+                                0.01 * (1-self.turn) * item_reg
+            elif self.loss_function == 'log_loss':
+                self.loss = tf.reduce_sum(
+                        -self.ground_truth*tf.log(self.logits)) + 0.01 * self.turn * user_reg + \
+                                        0.01 * (1-self.turn) * item_reg
+            else:
+                raise NotImplementedError
 
     def _get_inputs(self):
         with tf.variable_scope('inputs'):
@@ -160,6 +175,7 @@ class RRN(object):
     def _build_optimizer(self):
         with tf.variable_scope('optimizer'):
             optimizer = tf.train.AdamOptimizer(self.lr)
+            # optimizer = tf.train.AdagradOptimizer(self.lr)
             
             self.user_optim = optimizer.minimize(
                     self.loss, var_list=self.user_vars)
@@ -175,13 +191,14 @@ class RRN(object):
     def train(self, df, user_vectors, item_vectors):
         prep = Preprocess(df)
 
-        for epoch in trange(100):
+        for epoch in trange(self.epochs):
             loss = 0
             user_input, item_input, ground_truth, batch_user, batch_item = prep.gen_batch()
             u_static_vector = prep.get_latent_vector(batch_user, user_vectors, 'user')
             i_static_vector = prep.get_latent_vector(batch_item, item_vectors, 'item')
 
             # user turn
+            self.turn = 1
             loss_, _ = self.sess.run(
                     [self.loss, self.user_optim],
                     feed_dict={
@@ -194,6 +211,7 @@ class RRN(object):
             loss += loss_
 
             # item turn
+            self.turn = 0
             loss_, _ = self.sess.run(
                     [self.loss, self.item_optim],
                     feed_dict={
