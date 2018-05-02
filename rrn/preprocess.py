@@ -8,11 +8,14 @@ class Preprocess(object):
     as input of rrn model.
     '''
 
-    def __init__(self, dataframe, batch_size=64,
-                 user_time_interval=3, item_time_interval=3):
+    def __init__(self, dataframe, user_map, item_map, initial_time,
+                 batch_size=64, user_time_interval=3, item_time_interval=3):
         self.batch_size = batch_size
         self.user_time_interval = user_time_interval*30*24*3600
         self.item_time_interval = item_time_interval*30*24*3600
+        self.user_map = user_map
+        self.item_map = item_map
+        self.initial_time = initial_time
         self.df = dataframe
 
         self._build_essential()
@@ -29,25 +32,23 @@ class Preprocess(object):
                 // self.item_time_interval + 1
         self.userList = np.unique(self.df['uid'])
         self.itemList = np.unique(self.df['iid'])
-        self.userNum = len(self.userList)
-        self.itemNum = len(self.itemList)
-
-        self.user_map = {}
-        for idx, usr in enumerate(self.userList):
-            self.user_map[usr] = idx
+        self.userNum = len(self.user_map)
+        self.itemNum = len(self.item_map)
 
     ###################################################################
     # Fill matrix with corresponding wall clock.
     ###################################################################
     def _fill_time(self, phase):
+        user_s = (self.start_time - self.initial_time) // self.user_time_interval
+        item_s = (self.start_time - self.initial_time) // self.item_time_interval
         if phase == 'USER':
             for s in range(self.user_time_elapse):
-                self.matrix[:, s, -2] = s
-                self.matrix[:, s, -1] = s+1
+                self.matrix[:, s, -2] = user_s + s
+                self.matrix[:, s, -1] = user_s + s+1
         elif phase == 'ITEM':
             for s in range(self.item_time_elapse):
-                self.matrix[:, s, -2] = s
-                self.matrix[:, s, -1] = s+1
+                self.matrix[:, s, -2] = item_s + s
+                self.matrix[:, s, -1] = item_s + s+1
 
     ###################################################################
     # Fill matrix with rating information.
@@ -166,8 +167,12 @@ class Preprocess(object):
 
         return input_matrix, list_'''
 
-    def gen_batch(self):
-        batch_user = np.random.choice(self.userList, size=self.batch_size)
+    def gen_batch(self, sector=None):
+        if sector is None:
+            batch_user = np.random.choice(self.userList, size=self.batch_size)
+        else:
+            start = sector * self.batch_size
+            batch_user = self.userList[start : start + self.batch_size]
         batch_user = list(batch_user)
 
         batch_item = self._get_batch_item(batch_user)
