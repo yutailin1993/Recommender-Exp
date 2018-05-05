@@ -111,7 +111,7 @@ class Preprocess(object):
     ###################################################################
     # Gennerate item matrix.
     # Args:
-    #     batch_item: randomly generated items id list which are going 
+    #     batch_item: randomly generated items id list which are going
     #                 to build input matrix.
     # Return:
     #     self.matrix: generated matrix.
@@ -172,7 +172,7 @@ class Preprocess(object):
             batch_user = np.random.choice(self.userList, size=self.batch_size)
         else:
             start = sector * self.batch_size
-            batch_user = self.userList[start : start + self.batch_size]
+            batch_user = self.userList[start: start + self.batch_size]
         batch_user = list(batch_user)
 
         batch_item = self._get_batch_item(batch_user)

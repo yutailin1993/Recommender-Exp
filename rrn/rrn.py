@@ -16,16 +16,17 @@ class Transform(object):
         
         if self.phase == 'ENCODE':
             units = self.hparas['EMBED_UNITS']
+            activate = tf.nn.sigmoid
         elif self.phase == 'AFFINE':
             units = self.hparas['LATENT_UNITS']
+            activate = tf.nn.sigmoid
 
         with tf.variable_scope(self.phase+'_'+self.hparas['NAME']):
-
             self.output = tf.layers.dense(
                     self.inputs,
                     name='dense',
                     units=units,
-                    activation=tf.nn.relu)
+                    activation=activate)
 
 
 class LSTM(object):
@@ -121,19 +122,22 @@ class RRN(object):
 
             with tf.variable_scope('loss'):
                 if self.loss_function == 'rmse':
-                    self.loss = tf.reduce_sum(tf.pow(self.ground_truth-self.logits, 2)) + \
-                                    1 * self.turn * user_reg + \
-                                    1 * (1-self.turn) * item_reg
+                    self.loss = tf.reduce_sum(tf.square(
+                        tf.subtract(self.ground_truth[1:], self.logits[:-1]))) + \
+                                1 * self.turn * user_reg + \
+                                1 * (1-self.turn) * item_reg
+
                 elif self.loss_function == 'log_loss':
                     self.loss = tf.reduce_sum(
-                            -self.ground_truth*tf.log(self.logits)) + 0.01 * self.turn * user_reg + \
-                                            0.01 * (1-self.turn) * item_reg
+                            -self.ground_truth*tf.log(self.logits)) + \
+                                    0.01 * self.turn * user_reg + \
+                                    0.01 * (1-self.turn) * item_reg
                 else:
                     raise NotImplementedError
         else:
             with tf.variable_scope('loss'):
-                self.loss = tf.sqrt(
-                        tf.reduce_mean(tf.pow(self.ground_truth-self.logits, 2)))
+                self.loss = tf.sqrt(tf.reduce_mean(
+                    tf.square(tf.subtract(self.ground_truth[1:], self.logits[:-1]))))
 
     def _get_inputs(self):
         with tf.variable_scope('inputs'):
