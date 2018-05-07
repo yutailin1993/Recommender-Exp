@@ -65,6 +65,7 @@ class LSTM(object):
 
             self.output = output
             self.last_state = last_state
+            self.output_last = output[:, -1, :]
 
 
 class RRN(object):
@@ -129,12 +130,22 @@ class RRN(object):
                     self.item_stationary_factor,
                     transpose_b=True,
                     name='stationary_state')
-            self.logits = tf.add(
-                    self.dynamic_state,
-                    self.stationary_state,
-                    name='logits')
 
-            self.logits = tf.nn.relu(self.logits)
+            if self.loss_function == 'log_loss':
+                self.logits = tf.add(
+                        self.dynamic_state*0.5,
+                        self.stationary_state*0.5,
+                        name='logits')
+                self.logits = tf.nn.sigmoid(self.logits)
+
+            elif self.loss_function == 'rmse':
+                self.logits = tf.add(
+                        self.dynamic_state,
+                        self.stationary_state,
+                        name='logits')
+                self.logits = tf.nn.relu(self.logits)
+            else:
+                raise NotImplementedError("Didn't implement the loss function yet.")
 
     def _get_loss(self):
         """Get loss function.
@@ -156,16 +167,29 @@ class RRN(object):
                                 1 * (1-self.turn) * item_reg
 
                 elif self.loss_function == 'log_loss':
-                    self.loss = tf.reduce_sum(
-                            -self.ground_truth*tf.log(self.logits)) + \
-                                    0.01 * self.turn * user_reg + \
-                                    0.01 * (1-self.turn) * item_reg
+                    self.loss = tf.reduce_mean(
+                        -self.ground_truth[1:]*tf.log(self.logits[:-1]) -
+                        (1-self.ground_truth[1:])*tf.log(1-self.logits[:-1])) + \
+                        0.01 * self.turn * user_reg + \
+                        0.01 * (1-self.turn) * item_reg
                 else:
-                    raise NotImplementedError
+                    raise NotImplementedError("Didn't implement the loss function yet.")
         else:
             with tf.variable_scope('loss'):
-                self.loss = tf.sqrt(tf.reduce_mean(
-                    tf.square(tf.subtract(self.ground_truth[1:], self.logits[:-1]))))
+                # use RMSE as prediction loss.
+                if self.loss_function == 'rmse':
+                    self.loss_indiv = tf.sqrt(tf.square(
+                        tf.subtract(self.ground_truth[1:], self.logits[:-1])))
+                    self.loss = tf.sqrt(tf.reduce_mean(
+                        tf.square(tf.subtract(self.ground_truth[1:], self.logits[:-1]))))
+
+                # use LOG_LOSS as prediction loss.
+                elif self.loss_function == 'log_loss':
+                    self.loss_indiv = -self.ground_truth[1:]*tf.log(self.logits[:-1]) - \
+                        (1-self.ground_truth[1:])*tf.log(1-self.logits[:-1])
+                    self.loss = tf.reduce_mean(
+                        -self.ground_truth[1:]*tf.log(self.logits[:-1]) -
+                        (1-self.ground_truth[1:])*tf.log(1-self.logits[:-1]))
 
     def _get_inputs(self):
         """Get input tensor.
@@ -211,7 +235,6 @@ class RRN(object):
         if self.is_train:
             with tf.variable_scope('optimizer'):
                 optimizer = tf.train.AdamOptimizer(self.lr)
-                # optimizer = tf.train.AdagradOptimizer(self.lr)
 
                 self.user_optim = optimizer.minimize(
                         self.loss, var_list=self.user_vars)
@@ -253,7 +276,10 @@ class RRN(object):
 
         """
         assert self.is_train is True
-        prep = Preprocess(df, user_map, item_map, initial_time)
+        if self.loss_function == 'rmse':
+            prep = Preprocess(df, user_map, item_map, initial_time, 'rating')
+        elif self.loss_function == 'log_loss':
+            prep = Preprocess(df, user_map, item_map, initial_time, 'zero_one')
 
         for epoch in trange(self.epochs):
             loss = 0
@@ -296,22 +322,33 @@ class RRN(object):
         """
         self.saver.save(self.sess, 'model/rrn_%d.ckpt' % (num))
 
-    def model_loader(self, num):
+    def model_load(self, num):
         """Load model.
 
         """
         self.saver.restore(self.sess, 'model/rrn_%d.ckpt' % (num))
 
-    def test(self, df, user_map, item_map, initial_time):
+    def test(self, df, user_map, item_map, initial_time,
+             individually=False, top_rank=None):
         """Test model.
 
         """
         assert self.is_train is False
-        prep = Preprocess(df, user_map, item_map, initial_time)
+
+        if self.loss_function == 'rmse':
+            prep = Preprocess(df, user_map, item_map, initial_time, 'rating')
+        elif self.loss_function == 'log_loss':
+            prep = Preprocess(df, user_map, item_map, initial_time, 'zero_one')
+
+        if individually and top_rank is None:
+            raise ValueError("No top_list!!")
+        if individually and top_rank is not None:
+            top_list = prep.get_top_list(top_rank)
         userNum = len(np.unique(df['uid']))
         num_batch = userNum // self.user_hparas['BATCH_SIZE']
 
         test_loss = []
+
         for n in range(num_batch):
             user_input, item_input, ground_truth, \
                     batch_user, batch_item = prep.gen_batch(sector=n)
@@ -319,16 +356,27 @@ class RRN(object):
             u_static_vector = prep.get_latent_vector(batch_user, self.user_vectors, 'user')
             i_static_vector = prep.get_latent_vector(batch_item, self.item_vectors, 'item')
 
-            loss_ = self.sess.run(
-                    self.loss,
-                    feed_dict={
-                        self.user_input: user_input,
-                        self.item_input: item_input,
-                        self.ground_truth: ground_truth,
-                        self.user_stationary_factor: u_static_vector,
-                        self.item_stationary_factor: i_static_vector,
-                    })
+            if individually:
+                losses_ = self.sess.run(
+                        self.loss_indiv,
+                        feed_dict={
+                            self.user_input: user_input,
+                            self.item_input: item_input,
+                            self.ground_truth: ground_truth,
+                            self.user_stationary_factor: u_static_vector,
+                            self.item_stationary_factor: i_static_vector,
+                        })
+                loss_ = np.mean(np.multiply(losses_, top_list))
+            else:
+                loss_ = self.sess.run(
+                        self.loss,
+                        feed_dict={
+                            self.user_input: user_input,
+                            self.item_input: item_input,
+                            self.ground_truth: ground_truth,
+                            self.user_stationary_factor: u_static_vector,
+                            self.item_stationary_factor: i_static_vector,
+                        })
             test_loss.append(loss_)
 
         return test_loss
-

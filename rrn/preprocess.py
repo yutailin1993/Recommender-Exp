@@ -2,13 +2,13 @@ import numpy as np
 
 
 class Preprocess(object):
-    '''DataFrame preprocessing.
+    """DataFrame preprocessing.
 
     Transform dataframe into temporal dynamics fashion as input of rrn model.
     Also build ground_truth and selected latent factor of user and item.
-    '''
+    """
 
-    def __init__(self, dataframe, user_map, item_map, initial_time,
+    def __init__(self, dataframe, user_map, item_map, initial_time, mode,
                  batch_size=64, user_time_interval=3, item_time_interval=3):
         self.batch_size = batch_size
         self.user_time_interval = user_time_interval*30*24*3600
@@ -17,6 +17,7 @@ class Preprocess(object):
         self.item_map = item_map
         self.initial_time = initial_time
         self.df = dataframe
+        self.mode = mode
 
         self._build_essential()
 
@@ -70,7 +71,11 @@ class Preprocess(object):
             for info in usr_info:
                 season = (info[4] - self.start_time) // self.user_time_interval
                 item_idx = self.item_map[info[1]]  # df 'iid' start from "1" not "0"
-                rating = info[2]
+                if self.mode == 'rating':
+                    rating = info[2]
+                elif self.mode == 'zero_one':
+                    rating = 1 if info[2] != 0 else 0
+
                 self.matrix[idx][season][item_idx] = rating
         elif phase == 'ITEM':
             # item_info: (item_rating_history, [uid, iid, rate, date, timestamp, freq])
@@ -78,7 +83,11 @@ class Preprocess(object):
             for info in item_info:
                 season = (info[4] - self.start_time) // self.item_time_interval
                 usr = self.user_map[info[0]]
-                rating = info[2]
+                if self.mode == 'rating':
+                    rating = info[2]
+                elif self.mode == 'zero_one':
+                    rating = 1 if info[2] != 0 else 0
+
                 self.matrix[idx][season][usr] = rating
 
     def _fill_newbie(self, idx):
@@ -159,7 +168,11 @@ class Preprocess(object):
                 season = (info[4] - self.start_time) // time_interval
                 item = info[1]
                 if item in batch_item:
-                    rating = info[2]
+                    if self.mode == 'rating':
+                        rating = info[2]
+                    elif self.mode == 'zero_one':
+                        rating = 1 if info[2] != 0 else 0
+
                     item_idx = batch_item.index(item)
                     matrix[season][usr_idx][item_idx] = rating
 
@@ -261,4 +274,15 @@ class Preprocess(object):
 
         batch_vector = np.asarray(batch_vector, dtype=np.float32)
         return batch_vector
+    
+    def get_top_list(self, top_rank):
+        top_list = np.zeros(shape=(len(self.itemList)), dtype=np.float32)
+        map_ = {}
+        for idx, ident in enumerate(self.itemList):
+            map_[ident] = idx
 
+        for ident in top_rank:
+            if ident in self.itemList:
+                top_list[map_[ident]] = 1
+
+        return top_list
