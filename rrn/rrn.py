@@ -5,6 +5,12 @@ from tqdm import trange
 
 
 class Transform(object):
+    """Dimension transformation.
+
+    Build model for different layers (Input embedded, rating 
+    emission affine) transformation for both user and item.
+    """
+
     def __init__(self, inputs, hparas, phase):
         self.inputs = inputs
         self.hparas = hparas
@@ -30,6 +36,13 @@ class Transform(object):
 
 
 class LSTM(object):
+    """LSTM Cell for learning temporal dynamics.
+
+    In order to learn temporal dynamics, use LSTM Cell for both user
+    and item. output is the predict output for all times and 
+    output_last is for the new timestamp output.
+    """
+
     def __init__(self, inputs, hparas):
         self.hparas = hparas
         self.inputs = inputs
@@ -55,6 +68,10 @@ class LSTM(object):
 
 
 class RRN(object):
+    """Over all RRN model.
+
+    Including dimension transform, LSTM and rating emission.
+    """
     def __init__(
             self, user_hparas, item_hparas, user_vectors, item_vectors,
             is_train, lr=0.01, epochs=100, loss_function='rmse'):
@@ -79,7 +96,12 @@ class RRN(object):
         self._init_vars()
 
     def _build_model(self):
+        """Build traning model.
 
+        First embed user/item inputs into training dimension, then feed them in 
+        LSTMCell. Further affine the matrics into emission dimension after LSTM
+        and emit the prediction.
+        """
         phase = 'ENCODE'
         with tf.variable_scope(phase):
             self.encode_user = Transform(self.user_input, self.user_hparas, phase)
@@ -115,6 +137,12 @@ class RRN(object):
             self.logits = tf.nn.relu(self.logits)
 
     def _get_loss(self):
+        """Get loss function.
+        
+        Get loss function with regularizer. There are two loss function can be 
+        chosen, depending on the input data style(ether rating 1~5 or 0,1 for seen
+        or unseen).
+        """
         if self.is_train:
             with tf.variable_scope('l2-regularizer'):
                 user_reg = tf.add_n([tf.nn.l2_loss(v) for v in self.user_vars])
@@ -140,6 +168,9 @@ class RRN(object):
                     tf.square(tf.subtract(self.ground_truth[1:], self.logits[:-1]))))
 
     def _get_inputs(self):
+        """Get input tensor.
+
+        """
         with tf.variable_scope('inputs'):
             self.user_input = tf.placeholder(
                     dtype=tf.float32,
@@ -173,6 +204,10 @@ class RRN(object):
                            self.item_hparas['BATCH_SIZE']))
 
     def _build_optimizer(self):
+        """Build optimizer.
+
+        Use AdamOptimizer as paper said.
+        """
         if self.is_train:
             with tf.variable_scope('optimizer'):
                 optimizer = tf.train.AdamOptimizer(self.lr)
@@ -184,28 +219,46 @@ class RRN(object):
                         self.loss, var_list=self.item_vars)
 
     def _get_vars(self):
+        """Get trainable variables.
+
+        Get user and item's trainable variables to train them in different
+        phase.
+        """
         t_vars = tf.trainable_variables()
 
         self.user_vars = [var for var in t_vars if 'USER' in var.name]
         self.item_vars = [var for var in t_vars if 'ITEM' in var.name]
 
     def _get_session(self):
+        """Get tensorflow session.
+
+        """
         self.sess = tf.Session()
         tf.summary.FileWriter('logs/', self.sess.graph)
 
     def _get_saver(self):
+        """Get model saver.
+
+        """
         self.saver = tf.train.Saver()
 
     def _init_vars(self):
+        """Initial all variables.
+
+        """
         self.sess.run(tf.global_variables_initializer())
 
     def train(self, df, user_map, item_map, initial_time):
+        """Train model.
+
+        """
         assert self.is_train is True
         prep = Preprocess(df, user_map, item_map, initial_time)
 
         for epoch in trange(self.epochs):
             loss = 0
             user_input, item_input, ground_truth, batch_user, batch_item = prep.gen_batch()
+
             u_static_vector = prep.get_latent_vector(batch_user, self.user_vectors, 'user')
             i_static_vector = prep.get_latent_vector(batch_item, self.item_vectors, 'item')
 
@@ -237,13 +290,22 @@ class RRN(object):
 
             self.log['train_loss'].append(loss/2)
 
-    def model_saver(self, num):
-        self.saver.save(self.sess, 'model/rrn_%d.ckpt' % (num + 1))
+    def model_save(self, num):
+        """Save model.
+
+        """
+        self.saver.save(self.sess, 'model/rrn_%d.ckpt' % (num))
 
     def model_loader(self, num):
+        """Load model.
+
+        """
         self.saver.restore(self.sess, 'model/rrn_%d.ckpt' % (num))
 
     def test(self, df, user_map, item_map, initial_time):
+        """Test model.
+
+        """
         assert self.is_train is False
         prep = Preprocess(df, user_map, item_map, initial_time)
         userNum = len(np.unique(df['uid']))

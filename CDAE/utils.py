@@ -53,7 +53,7 @@ def avg_precision(topN, indices):
     try:
         return sum_p / min(N, len(indices))
     except ZeroDivisionError:
-        return 100
+        return 0
 
 
 def get_topN(rec_matrix, train_index, N=5):
