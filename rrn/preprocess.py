@@ -74,7 +74,7 @@ class Preprocess(object):
                 if self.mode == 'rating':
                     rating = info[2]
                 elif self.mode == 'zero_one':
-                    rating = 1 if info[2] != 0 else 0
+                    rating = 1
 
                 self.matrix[idx][season][item_idx] = rating
         elif phase == 'ITEM':
@@ -86,7 +86,7 @@ class Preprocess(object):
                 if self.mode == 'rating':
                     rating = info[2]
                 elif self.mode == 'zero_one':
-                    rating = 1 if info[2] != 0 else 0
+                    rating = 1
 
                 self.matrix[idx][season][usr] = rating
 

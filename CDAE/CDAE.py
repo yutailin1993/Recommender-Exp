@@ -52,6 +52,7 @@ class AutoEncoder(object):
         self._build_loss()
         self._build_optimizer()
         self._build_session()
+        self._get_saver()
         self._init_vars()
         
     def _build_model(self):
@@ -151,6 +152,9 @@ class AutoEncoder(object):
         self.sess = tf.Session()
         self.writer = tf.summary.FileWriter('logs/', self.sess.graph)
 
+    def _get_saver(self):
+        self.saver = tf.train.Saver()
+
     def _init_vars(self):
         self.sess.run(tf.global_variables_initializer())
 
@@ -183,3 +187,8 @@ class AutoEncoder(object):
             self.log['train_loss'].append(total_loss/train_num)
             self.log['ap@5'].append(sum(ap_at_5)/len(ap_at_5))
 
+    def model_save(self, num):
+        self.saver.save(self.sess, 'model/cdae_%d.ckpt' % (num))
+
+    def model_load(self, num):
+        self.saver.restore(self.sess, 'model/cdae_%d.ckpt' % (num))

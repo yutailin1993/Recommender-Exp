@@ -132,18 +132,18 @@ class RRN(object):
                     name='stationary_state')
 
             if self.loss_function == 'log_loss':
-                self.logits = tf.add(
+                logits = tf.add(
                         self.dynamic_state*0.5,
                         self.stationary_state*0.5,
                         name='logits')
-                self.logits = tf.nn.sigmoid(self.logits)
+                self.logits = tf.nn.sigmoid(logits, name='logits_activation')
 
             elif self.loss_function == 'rmse':
-                self.logits = tf.add(
+                logits = tf.add(
                         self.dynamic_state,
                         self.stationary_state,
                         name='logits')
-                self.logits = tf.nn.relu(self.logits)
+                self.logits = tf.nn.relu(logits, name='logits_activation')
             else:
                 raise NotImplementedError("Didn't implement the loss function yet.")
 
