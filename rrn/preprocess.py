@@ -9,10 +9,10 @@ class Preprocess(object):
     """
 
     def __init__(self, dataframe, user_map, item_map, initial_time, mode,
-                 batch_size=64, user_time_interval=3, item_time_interval=3):
+                 batch_size=64, user_time_interval=7, item_time_interval=7):
         self.batch_size = batch_size
-        self.user_time_interval = user_time_interval*30*24*3600
-        self.item_time_interval = item_time_interval*30*24*3600
+        self.user_time_interval = user_time_interval*24*3600
+        self.item_time_interval = item_time_interval*24*3600
         self.user_map = user_map
         self.item_map = item_map
         self.initial_time = initial_time

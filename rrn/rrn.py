@@ -224,13 +224,13 @@ class RRN(object):
                     dtype=tf.float32,
                     shape=(self.user_hparas['BATCH_SIZE'],
                            None,
-                           self.user_hparas['ITEM_NUM']),
+                           self.user_hparas['VECTOR_LENGTH']),
                     name='user_in')
             self.item_input = tf.placeholder(
                     dtype=tf.float32,
                     shape=(self.item_hparas['BATCH_SIZE'],
                            None,
-                           self.item_hparas['USER_NUM']),
+                           self.item_hparas['VECTOR_LENGTH']),
                     name='item_in')
 
         with tf.variable_scope('stationary_factor'):
@@ -313,9 +313,15 @@ class RRN(object):
         """
         assert self.is_train is True
         if self.loss_function == 'rmse':
-            prep = Preprocess(df, user_map, item_map, initial_time, 'rating')
+            prep = Preprocess(
+                    df, user_map, item_map, initial_time, 'rating', 
+                    user_time_interval=self.user_hparas['TIME_INTERVAL'],
+                    item_time_interval=self.item_hparas['TIME_INTERVAL'])
         elif self.loss_function == 'log_loss':
-            prep = Preprocess(df, user_map, item_map, initial_time, 'zero_one')
+            prep = Preprocess(
+                    df, user_map, item_map, initial_time, 'zero_one',
+                    user_time_interval=self.user_hparas['TIME_INTERVAL'],
+                    item_time_interval=self.item_hparas['TIME_INTERVAL'])
 
         if self.weighted is not None and top_rank is not None:
             weight_list = prep.get_list_weight(top_rank, self.weighted)
@@ -412,9 +418,15 @@ class RRN(object):
         assert self.is_train is False
 
         if self.loss_function == 'rmse':
-            prep = Preprocess(df, user_map, item_map, initial_time, 'rating')
+            prep = Preprocess(
+                    df, user_map, item_map, initial_time, 'rating',
+                    user_time_interval=self.user_hparas['TIME_INTERVAL'],
+                    item_time_interval=self.item_hparas['TIME_INTERVAL'])
         elif self.loss_function == 'log_loss':
-            prep = Preprocess(df, user_map, item_map, initial_time, 'zero_one')
+            prep = Preprocess(
+                    df, user_map, item_map, initial_time, 'zero_one',
+                    user_time_interval=self.user_hparas['TIME_INTERVAL'],
+                    item_time_interval=self.item_hparas['TIME_INTERVAL'])
 
         if individually and top_rank is None:
             raise ValueError("No top_list!!")
