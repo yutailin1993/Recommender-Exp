@@ -286,3 +286,15 @@ class Preprocess(object):
                 top_list[map_[ident]] = 1
 
         return top_list
+
+    def get_list_weight(self, top_rank, weight):
+        list_weight = np.ones(shape=(len(self.itemList)), dtype=np.float32)
+        map_ = {}
+        for idx, ident in enumerate(self.itemList):
+            map_[ident] = idx
+
+        for ident in top_rank:
+            if ident in self.itemList:
+                list_weight[map_[ident]] = weight
+
+        return list_weight

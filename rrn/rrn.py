@@ -75,7 +75,7 @@ class RRN(object):
     """
     def __init__(
             self, user_hparas, item_hparas, user_vectors, item_vectors,
-            is_train, lr=0.01, epochs=100, loss_function='rmse'):
+            is_train, lr=0.01, epochs=100, loss_function='rmse', weighted=None):
         self.user_hparas = user_hparas
         self.item_hparas = item_hparas
         self.user_vectors = user_vectors
@@ -84,6 +84,7 @@ class RRN(object):
         self.lr = lr
         self.epochs = epochs
         self.loss_function = loss_function
+        self.weighted = weighted
         self.log = {'train_loss': []}
         self.turn = 1.  # 1 for 'user' turn, 0 for 'item' turn
 
@@ -147,6 +148,8 @@ class RRN(object):
             else:
                 raise NotImplementedError("Didn't implement the loss function yet.")
 
+            self.logits_last = self.logits[-1, :, :]
+
     def _get_loss(self):
         """Get loss function.
         
@@ -160,20 +163,41 @@ class RRN(object):
                 item_reg = tf.add_n([tf.nn.l2_loss(v) for v in self.item_vars])
 
             with tf.variable_scope('loss'):
-                if self.loss_function == 'rmse':
-                    self.loss = tf.reduce_sum(tf.square(
-                        tf.subtract(self.ground_truth[1:], self.logits[:-1]))) + \
-                                1 * self.turn * user_reg + \
-                                1 * (1-self.turn) * item_reg
+                if self.weighted is None:
+                    if self.loss_function == 'rmse':
+                        self.loss = tf.reduce_sum(tf.square(
+                            tf.subtract(self.ground_truth[1:], self.logits[:-1]))) + \
+                                    1 * self.turn * user_reg + \
+                                    1 * (1-self.turn) * item_reg
 
-                elif self.loss_function == 'log_loss':
-                    self.loss = tf.reduce_mean(
-                        -self.ground_truth[1:]*tf.log(self.logits[:-1]) -
-                        (1-self.ground_truth[1:])*tf.log(1-self.logits[:-1])) + \
-                        0.01 * self.turn * user_reg + \
-                        0.01 * (1-self.turn) * item_reg
+                    elif self.loss_function == 'log_loss':
+                        self.loss = tf.reduce_mean(
+                            -self.ground_truth[1:]*tf.log(self.logits[:-1]) -
+                            (1-self.ground_truth[1:])*tf.log(1-self.logits[:-1])) + \
+                            0.01 * self.turn * user_reg + \
+                            0.01 * (1-self.turn) * item_reg
+                    else:
+                        raise NotImplementedError("Didn't implement the loss function yet.")
                 else:
-                    raise NotImplementedError("Didn't implement the loss function yet.")
+                    if self.loss_function == 'rmse':
+                        weighted_loss = tf.multiply(tf.square(
+                            tf.subtract(self.ground_truth[1:], self.logits[:-1])),
+                            self.weight_list)
+                        self.loss = tf.reduce_sum(weighted_loss) + \
+                            1 * self.turn * user_reg + \
+                            1 * (1-self.turn) * item_reg
+
+                    elif self.loss_function == 'log_loss':
+                        weighted_loss = tf.multiply(
+                                -self.ground_truth[1:]*tf.log(self.logits[:-1]) -
+                                (1-self.ground_truth[1:]*tf.log(1-self.logits[:-1])),
+                                self.weight_list)
+                        self.loss = tf.reduce_mean(weighted_loss) + \
+                            0.01 * self.turn * user_reg + \
+                            0.01 * (1-self.turn) * item_reg
+                    else:
+                        raise NotImplementedError("Didn't implement the loss function yet.")
+
         else:
             with tf.variable_scope('loss'):
                 # use RMSE as prediction loss.
@@ -227,6 +251,12 @@ class RRN(object):
                     shape=(None, self.user_hparas['BATCH_SIZE'],
                            self.item_hparas['BATCH_SIZE']))
 
+        if self.weighted is not None:
+            with tf.variable_scope('weight_list'):
+                self.weight_list = tf.placeholder(
+                        dtype=tf.float32,
+                        shape=(self.item_hparas['BATCH_SIZE']))
+
     def _build_optimizer(self):
         """Build optimizer.
 
@@ -271,7 +301,13 @@ class RRN(object):
         """
         self.sess.run(tf.global_variables_initializer())
 
-    def train(self, df, user_map, item_map, initial_time):
+    def _run_session(self, *arg):
+        """Run tf session.
+
+        """
+        raise NotImplementedError
+
+    def train(self, df, user_map, item_map, initial_time, top_rank=None):
         """Train model.
 
         """
@@ -281,52 +317,92 @@ class RRN(object):
         elif self.loss_function == 'log_loss':
             prep = Preprocess(df, user_map, item_map, initial_time, 'zero_one')
 
+        if self.weighted is not None and top_rank is not None:
+            weight_list = prep.get_list_weight(top_rank, self.weighted)
+        elif self.weighted is not None and top_rank is None:
+            raise ValueError("No ranking matrix.")
+
         for epoch in trange(self.epochs):
             loss = 0
             user_input, item_input, ground_truth, batch_user, batch_item = prep.gen_batch()
 
             u_static_vector = prep.get_latent_vector(batch_user, self.user_vectors, 'user')
             i_static_vector = prep.get_latent_vector(batch_item, self.item_vectors, 'item')
+            ################################################################
+            # without weighted
+            ################################################################
+            if self.weighted is None:
+                # user turn
+                self.turn = 1
+                loss_, _ = self.sess.run(
+                        [self.loss, self.user_optim],
+                        feed_dict={
+                            self.user_input: user_input,
+                            self.item_input: item_input,
+                            self.ground_truth: ground_truth,
+                            self.user_stationary_factor: u_static_vector,
+                            self.item_stationary_factor: i_static_vector,
+                        })
+                loss += loss_
 
-            # user turn
-            self.turn = 1
-            loss_, _ = self.sess.run(
-                    [self.loss, self.user_optim],
-                    feed_dict={
-                        self.user_input: user_input,
-                        self.item_input: item_input,
-                        self.ground_truth: ground_truth,
-                        self.user_stationary_factor: u_static_vector,
-                        self.item_stationary_factor: i_static_vector,
-                    })
-            loss += loss_
+                # item turn
+                self.turn = 0
+                loss_, _ = self.sess.run(
+                        [self.loss, self.item_optim],
+                        feed_dict={
+                           self.user_input: user_input,
+                           self.item_input: item_input,
+                           self.ground_truth: ground_truth,
+                           self.user_stationary_factor: u_static_vector,
+                           self.item_stationary_factor: i_static_vector,
+                        })
+                loss += loss_
+            
+            ################################################################
+            # With weighted
+            ################################################################
+            else:
+                # user turn
+                self.turn = 1
+                loss_, _ = self.sess.run(
+                        [self.loss, self.user_optim],
+                        feed_dict={
+                            self.user_input: user_input,
+                            self.item_input: item_input,
+                            self.ground_truth: ground_truth,
+                            self.user_stationary_factor: u_static_vector,
+                            self.item_stationary_factor: i_static_vector,
+                            self.weight_list: weight_list,
+                        })
+                loss += loss_
 
-            # item turn
-            self.turn = 0
-            loss_, _ = self.sess.run(
-                    [self.loss, self.item_optim],
-                    feed_dict={
-                       self.user_input: user_input,
-                       self.item_input: item_input,
-                       self.ground_truth: ground_truth,
-                       self.user_stationary_factor: u_static_vector,
-                       self.item_stationary_factor: i_static_vector,
-                    })
-            loss += loss_
+                # item turn
+                self.turn = 0
+                loss_, _ = self.sess.run(
+                        [self.loss, self.item_optim],
+                        feed_dict={
+                           self.user_input: user_input,
+                           self.item_input: item_input,
+                           self.ground_truth: ground_truth,
+                           self.user_stationary_factor: u_static_vector,
+                           self.item_stationary_factor: i_static_vector,
+                           self.weight_list: weight_list,
+                        })
+                loss += loss_
 
             self.log['train_loss'].append(loss/2)
 
-    def model_save(self, num):
+    def model_save(self, name):
         """Save model.
 
         """
-        self.saver.save(self.sess, 'model/rrn_%d.ckpt' % (num))
+        self.saver.save(self.sess, 'model/rrn_%s.ckpt' % (name))
 
-    def model_load(self, num):
+    def model_load(self, name):
         """Load model.
 
         """
-        self.saver.restore(self.sess, 'model/rrn_%d.ckpt' % (num))
+        self.saver.restore(self.sess, 'model/rrn_%s.ckpt' % (name))
 
     def test(self, df, user_map, item_map, initial_time,
              individually=False, top_rank=None):
@@ -380,3 +456,6 @@ class RRN(object):
             test_loss.append(loss_)
 
         return test_loss
+
+    def predict(self):
+        raise NotImplementedError
