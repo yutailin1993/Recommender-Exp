@@ -163,12 +163,12 @@ class RRN(object):
                 item_reg = tf.add_n([tf.nn.l2_loss(v) for v in self.item_vars])
 
             with tf.variable_scope('loss'):
+                filter_ = tf.nn.relu(tf.sign(self.ground_truth[1:]))
                 if self.weighted is None:
                     if self.loss_function == 'rmse':
-                        self.loss = tf.reduce_sum(tf.square(
-                            tf.subtract(self.ground_truth[1:], self.logits[:-1]))) + \
-                                    1 * self.turn * user_reg + \
-                                    1 * (1-self.turn) * item_reg
+                        self.loss = tf.reduce_sum(tf.multiply(tf.square(
+                            tf.subtract(self.ground_truth[1:], self.logits[:-1])),
+                            filter_)) + 1*self.turn*user_reg + 1*(1-self.turn)*item_reg
 
                     elif self.loss_function == 'log_loss':
                         self.loss = tf.reduce_mean(
@@ -183,14 +183,14 @@ class RRN(object):
                         weighted_loss = tf.multiply(tf.square(
                             tf.subtract(self.ground_truth[1:], self.logits[:-1])),
                             self.weight_list)
-                        self.loss = tf.reduce_sum(weighted_loss) + \
-                            1 * self.turn * user_reg + \
-                            1 * (1-self.turn) * item_reg
+                        self.loss = tf.reduce_sum(tf.multiply(
+                            weighted_loss,
+                            filter_)) + 1*self.turn*user_reg + 1*(1-self.turn)*item_reg
 
                     elif self.loss_function == 'log_loss':
                         weighted_loss = tf.multiply(
                                 -self.ground_truth[1:]*tf.log(self.logits[:-1]) -
-                                (1-self.ground_truth[1:]*tf.log(1-self.logits[:-1])),
+                                (1-self.ground_truth[1:])*tf.log(1-self.logits[:-1]),
                                 self.weight_list)
                         self.loss = tf.reduce_mean(weighted_loss) + \
                             0.01 * self.turn * user_reg + \
@@ -200,12 +200,15 @@ class RRN(object):
 
         else:
             with tf.variable_scope('loss'):
+                filter_ = tf.nn.relu(tf.sign(self.ground_truth[1:]))
                 # use RMSE as prediction loss.
                 if self.loss_function == 'rmse':
-                    self.loss_indiv = tf.sqrt(tf.square(
-                        tf.subtract(self.ground_truth[1:], self.logits[:-1])))
-                    self.loss = tf.sqrt(tf.reduce_mean(
-                        tf.square(tf.subtract(self.ground_truth[1:], self.logits[:-1]))))
+                    self.loss_indiv = tf.multiply(tf.square(
+                        tf.subtract(self.ground_truth[1:], self.logits[:-1])),
+                        filter_)
+                    self.loss = tf.sqrt(tf.reduce_mean(tf.multiply(
+                        tf.square(tf.subtract(self.ground_truth[1:], self.logits[:-1])),
+                        filter_)))
 
                 # use LOG_LOSS as prediction loss.
                 elif self.loss_function == 'log_loss':
@@ -454,7 +457,10 @@ class RRN(object):
                             self.user_stationary_factor: u_static_vector,
                             self.item_stationary_factor: i_static_vector,
                         })
-                loss_ = np.mean(np.multiply(losses_, top_list))
+                if self.loss_function == 'rmse':
+                    loss_ = np.sqrt(np.mean(np.multiply(losses_, top_list)))
+                elif self.loss_function == 'log_loss':
+                    loss_ = np.mean(np.multiply(losses_, top_list))
             else:
                 loss_ = self.sess.run(
                         self.loss,
