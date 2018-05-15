@@ -2,70 +2,12 @@ import numpy as np
 import tensorflow as tf
 from preprocess import Preprocess
 from tqdm import trange
+from transform import Transform
+from lstm import LSTM
+import sys
+sys.path.insert(0, '../CDAE/')
 
-
-class Transform(object):
-    """Dimension transformation.
-
-    Build model for different layers (Input embedded, rating 
-    emission affine) transformation for both user and item.
-    """
-
-    def __init__(self, inputs, hparas, phase):
-        self.inputs = inputs
-        self.hparas = hparas
-        self.phase = phase
-
-        self._build_model()
-
-    def _build_model(self):
-        
-        if self.phase == 'ENCODE':
-            units = self.hparas['EMBED_UNITS']
-            activate = tf.nn.sigmoid
-        elif self.phase == 'AFFINE':
-            units = self.hparas['LATENT_UNITS']
-            activate = tf.nn.sigmoid
-
-        with tf.variable_scope(self.phase+'_'+self.hparas['NAME']):
-            self.output = tf.layers.dense(
-                    self.inputs,
-                    name='dense',
-                    units=units,
-                    activation=activate)
-
-
-class LSTM(object):
-    """LSTM Cell for learning temporal dynamics.
-
-    In order to learn temporal dynamics, use LSTM Cell for both user
-    and item. output is the predict output for all times and 
-    output_last is for the new timestamp output.
-    """
-
-    def __init__(self, inputs, hparas):
-        self.hparas = hparas
-        self.inputs = inputs
-
-        self._build_model()
-
-    def _build_model(self):
-        with tf.variable_scope('LSTM_'+self.hparas['NAME']):
-            LSTMCell = tf.contrib.rnn.BasicLSTMCell(
-                    self.hparas['LSTM_UNITS'],
-                    activation=tf.nn.relu)
-            initial_state = LSTMCell.zero_state(
-                    self.hparas['BATCH_SIZE'], dtype=tf.float32)
-            output, last_state = tf.nn.dynamic_rnn(
-                    cell=LSTMCell,
-                    inputs=self.inputs,
-                    initial_state=initial_state,
-                    dtype=tf.float32,
-                    )
-
-            self.output = output
-            self.last_state = last_state
-            self.output_last = output[:, -1, :]
+from utils import avg_precision
 
 
 class RRN(object):
@@ -203,20 +145,20 @@ class RRN(object):
                 filter_ = tf.nn.relu(tf.sign(self.ground_truth[1:]))
                 # use RMSE as prediction loss.
                 if self.loss_function == 'rmse':
-                    self.loss_indiv = tf.multiply(tf.square(
+                    self.loss = tf.multiply(tf.square(
                         tf.subtract(self.ground_truth[1:], self.logits[:-1])),
                         filter_)
-                    self.loss = tf.sqrt(tf.reduce_mean(tf.multiply(
-                        tf.square(tf.subtract(self.ground_truth[1:], self.logits[:-1])),
-                        filter_)))
+                    # self.loss = tf.sqrt(tf.reduce_mean(tf.multiply(
+                    #     tf.square(tf.subtract(self.ground_truth[1:], self.logits[:-1])),
+                    #     filter_)))
 
                 # use LOG_LOSS as prediction loss.
                 elif self.loss_function == 'log_loss':
-                    self.loss_indiv = -self.ground_truth[1:]*tf.log(self.logits[:-1]) - \
+                    self.loss = -self.ground_truth[1:]*tf.log(self.logits[:-1]) - \
                         (1-self.ground_truth[1:])*tf.log(1-self.logits[:-1])
-                    self.loss = tf.reduce_mean(
-                        -self.ground_truth[1:]*tf.log(self.logits[:-1]) -
-                        (1-self.ground_truth[1:])*tf.log(1-self.logits[:-1]))
+                    # self.loss = tf.reduce_mean(
+                    #     -self.ground_truth[1:]*tf.log(self.logits[:-1]) -
+                    #     (1-self.ground_truth[1:])*tf.log(1-self.logits[:-1]))
 
     def _get_inputs(self):
         """Get input tensor.
@@ -413,8 +355,68 @@ class RRN(object):
         """
         self.saver.restore(self.sess, 'model/rrn_%s.ckpt' % (name))
 
+    def test_ap(self, df, user_map, item_map, initial_time, N):
+        """Test model by average precision
+
+        """
+        assert self.is_train is False
+        prep = Preprocess(
+                df, user_map, item_map, initial_time, 'zero_one',
+                user_time_interval=self.user_hparas['TIME_INTERVAL'],
+                item_time_interval=self.item_hparas['TIME_INTERVAL'])
+
+        userNum = len(np.unique(df['uid']))
+        num_batch = userNum // self.user_hparas['BATCH_SIZE']
+        ground_truths = []
+        logits = []
+
+        for n in range(num_batch + 1):
+            user_input, item_input, ground_truth, \
+                    batch_user, batch_item = prep.gen_batch(sector=n)
+
+            u_static_vector = prep.get_latent_vector(batch_user, self.user_vectors, 'user')
+            i_static_vector = prep.get_latent_vector(batch_item, self.item_vectors, 'item')
+            
+            if n < num_batch:
+                valid_user_num = self.user_hparas['BATCH_SIZE']
+            else:
+                valid_user_num = userNum - n * self.user_hparas['BATCH_SIZE']
+
+            logit = self.sess.run(
+                    self.logits,
+                    feed_dict={
+                        self.user_input: user_input,
+                        self.item_input: item_input,
+                        self.user_stationary_factor: u_static_vector,
+                        self.item_stationary_factor: i_static_vector,
+                    })
+
+            for i, j in zip(ground_truth[-1][-valid_user_num:], logit[-2][-valid_user_num:]):
+                ground_truths.append(i)
+                logits.append(j)
+        
+        ground_truths = np.asarray(ground_truths)
+        logits = np.asarray(logits)
+        # logits_rec = np.argsort(logits, axis=1)
+        # ground_truth_top_N = np.count_nonzero(ground_truths, axis=0).argsort()[::-1][:N]
+        # rec_map = {}
+        # for i in logits_rec:
+        #     for j in i[:30]:
+        #         if j not in rec_map:
+        #             rec_map[j] = 1
+        #         else:
+        #             rec_map[j] += 1
+
+        # logits_top_N = sorted(rec_map, key=rec_map.get, reverse=True)[:30]
+
+        # ap_at_N = avg_precision(logits_top_N, ground_truth_top_N)
+
+        ap_at_N = np.sqrt(np.mean(np.square(ground_truths-logits)))
+
+        return ap_at_N
+
     def test(self, df, user_map, item_map, initial_time,
-             individually=False, top_rank=None):
+             individually=None, top_rank=None):
         """Test model.
 
         """
@@ -432,48 +434,61 @@ class RRN(object):
                     item_time_interval=self.item_hparas['TIME_INTERVAL'])
 
         if individually and top_rank is None:
-            raise ValueError("No top_list!!")
+            raise ValueError("No top_list.")
         if individually and top_rank is not None:
             top_list = prep.get_top_list(top_rank)
+
         userNum = len(np.unique(df['uid']))
         num_batch = userNum // self.user_hparas['BATCH_SIZE']
 
         test_loss = []
 
-        for n in range(num_batch):
+        for n in range(num_batch+1):
+
             user_input, item_input, ground_truth, \
                     batch_user, batch_item = prep.gen_batch(sector=n)
 
             u_static_vector = prep.get_latent_vector(batch_user, self.user_vectors, 'user')
             i_static_vector = prep.get_latent_vector(batch_item, self.item_vectors, 'item')
+            
+            if n < num_batch:
+                valid_user_num = self.user_hparas['BATCH_SIZE']
+            else:
+                valid_user_num = userNum - n * self.user_hparas['BATCH_SIZE']
+
+            losses_ = self.sess.run(
+                    self.loss,
+                    feed_dict={
+                        self.user_input: user_input,
+                        self.item_input: item_input,
+                        self.ground_truth: ground_truth,
+                        self.user_stationary_factor: u_static_vector,
+                        self.item_stationary_factor: i_static_vector,
+                        })
 
             if individually:
-                losses_ = self.sess.run(
-                        self.loss_indiv,
-                        feed_dict={
-                            self.user_input: user_input,
-                            self.item_input: item_input,
-                            self.ground_truth: ground_truth,
-                            self.user_stationary_factor: u_static_vector,
-                            self.item_stationary_factor: i_static_vector,
-                        })
                 if self.loss_function == 'rmse':
-                    loss_ = np.sqrt(np.mean(np.multiply(losses_, top_list)))
+                    loss_ = np.sqrt(np.mean(np.multiply(losses_[-valid_user_num:], top_list)))
                 elif self.loss_function == 'log_loss':
-                    loss_ = np.mean(np.multiply(losses_, top_list))
+                    loss_ = np.mean(np.multiply(losses_[-valid_user_num:], top_list))
             else:
-                loss_ = self.sess.run(
-                        self.loss,
-                        feed_dict={
-                            self.user_input: user_input,
-                            self.item_input: item_input,
-                            self.ground_truth: ground_truth,
-                            self.user_stationary_factor: u_static_vector,
-                            self.item_stationary_factor: i_static_vector,
-                        })
+                if self.loss_function == 'rmse':
+                    loss_ = np.sqrt(np.mean(losses_[-valid_user_num:]))
+                elif self.loss_function == 'log_loss':
+                    loss_ = np.mean(losses_[-valid_user_num:])
+
             test_loss.append(loss_)
 
         return test_loss
 
-    def predict(self):
-        raise NotImplementedError
+    def predict(self, user_input, item_input, u_static_vector, i_static_vector):
+        logits = self.sess.run(
+                self.logits,
+                feed_dict={
+                    self.user_input: user_input,
+                    self.item_input: item_input,
+                    self.user_stationary_factor: u_static_vector,
+                    self.item_stationary_factor: i_static_vector,
+                })
+
+        return logits[-1, :, :]

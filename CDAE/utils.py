@@ -51,7 +51,7 @@ def avg_precision(topN, indices):
             sum_p += hit_count / (i+1)
     
     try:
-        return sum_p / min(N, len(indices))
+        return sum_p / min(N, max(1, len(indices)))
     except ZeroDivisionError:
         return 0
 
