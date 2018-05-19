@@ -158,7 +158,7 @@ class AutoEncoder(object):
     def _init_vars(self):
         self.sess.run(tf.global_variables_initializer())
 
-    def train(self, rating, train_indices, test_indices):
+    def train(self, rating, train_idents, train_indices, test_indices):
         if self.mode == 'user':
             train_num = self.user_num
         elif self.mode == 'item':
@@ -168,7 +168,7 @@ class AutoEncoder(object):
             total_loss = 0
             ap_at_5 = []
 
-            for n in range(train_num):
+            for n in train_idents:
                 input_ = [rating[n]]
                 target_ = [rating[n]]
 
@@ -192,3 +192,24 @@ class AutoEncoder(object):
 
     def model_load(self, num):
         self.saver.restore(self.sess, 'model/cdae_%d.ckpt' % (num))
+
+    def predict(self, rating, test_idents):
+        recon_list = []
+
+        for n in test_idents:
+            input_ = [rating[n]]
+
+            recon = self.sess.run(
+                    self.decode,
+                    feed_dict={
+                        self.input: input_,
+                        self.ident: n
+                    })
+
+            recon_list.append(recon)
+
+        recon_list = np.squeeze(np.asarray(recon_list))
+
+        return recon_list
+
+

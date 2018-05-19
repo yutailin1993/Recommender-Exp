@@ -26,8 +26,29 @@ def gen_train_test(inputs, ratio=0.3):
 
         train_indices.append(train_idx)
         test_indices.append(test_idx)
-        
+
     return train_rating, train_indices, test_indices
+
+
+def recall_at_N(topN, indices):
+    """Calculate Recall
+
+    -- Args --:
+        topN: reconstruct top N recommand
+        indices: list of items that user have seen in test set
+
+    -- Return --:
+        recall: user's average precision
+    """
+    N = len(topN)
+    hit_count = 0
+    for i in range(N):
+        if topN[i] in indices:
+            hit_count += 1
+
+    recall = hit_count / len(indices)
+
+    return recall
 
 
 def avg_precision(topN, indices):
@@ -49,7 +70,7 @@ def avg_precision(topN, indices):
         if topN[i] in indices:
             hit_count += 1
             sum_p += hit_count / (i+1)
-    
+
     try:
         return sum_p / min(N, max(1, len(indices)))
     except ZeroDivisionError:
@@ -57,7 +78,7 @@ def avg_precision(topN, indices):
 
 
 def get_topN(rec_matrix, train_index, N=5):
-    
+
     topN = []
     recon_rank = rec_matrix[0].argsort()[::-1]
 

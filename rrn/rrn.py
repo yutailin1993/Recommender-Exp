@@ -7,7 +7,7 @@ from lstm import LSTM
 import sys
 sys.path.insert(0, '../CDAE/')
 
-from utils import avg_precision
+from utils import avg_precision, recall_at_N
 
 
 class RRN(object):
@@ -397,23 +397,17 @@ class RRN(object):
         
         ground_truths = np.asarray(ground_truths)
         logits = np.asarray(logits)
-        # logits_rec = np.argsort(logits, axis=1)
-        # ground_truth_top_N = np.count_nonzero(ground_truths, axis=0).argsort()[::-1][:N]
-        # rec_map = {}
-        # for i in logits_rec:
-        #     for j in i[:30]:
-        #         if j not in rec_map:
-        #             rec_map[j] = 1
-        #         else:
-        #             rec_map[j] += 1
+        # rated_user = np.nonzero(np.count_nonzero(ground_truths, axis=1))[0]
+        ground_truth_top_N = np.count_nonzero(ground_truths, axis=0).argsort()[::-1][:N]
+        logits_rec = np.mean(logits, axis=1)
+        
 
-        # logits_top_N = sorted(rec_map, key=rec_map.get, reverse=True)[:30]
+        logits_top_N = logits_rec.argsort()[::-1][:N]
 
-        # ap_at_N = avg_precision(logits_top_N, ground_truth_top_N)
+        recall = recall_at_N(logits_top_N, ground_truth_top_N)
+        ap = avg_precision(logits_top_N, ground_truth_top_N)
 
-        ap_at_N = np.sqrt(np.mean(np.square(ground_truths-logits)))
-
-        return ap_at_N
+        return recall, ap
 
     def test(self, df, user_map, item_map, initial_time,
              individually=None, top_rank=None):
