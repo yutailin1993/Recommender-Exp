@@ -163,7 +163,7 @@ class AutoEncoder(object):
             train_num = self.user_num
         elif self.mode == 'item':
             train_num = self.item_num
-        
+
         for epoch in trange(self.epochs):
             total_loss = 0
             ap_at_5 = []
@@ -179,13 +179,36 @@ class AutoEncoder(object):
                             self.target: target_,
                             self.ident: n,
                         })
-                
+
                 total_loss += loss
                 top5 = get_topN(recon, train_indices[n])
                 ap_at_5.append(avg_precision(top5, test_indices[n]))
 
             self.log['train_loss'].append(total_loss/train_num)
             self.log['ap@5'].append(sum(ap_at_5)/len(ap_at_5))
+
+    def train_all(self, rating, train_idents):
+        """Train with all rating without validation
+
+        """
+        for epoch in trange(self.epochs):
+            total_loss = 0
+            
+            for n in train_idents:
+                input_ = [rating[n]]
+                target_ = [rating[n]]
+
+                recon, loss, _ = self.sess.run(
+                        [self.decode, self.loss, self.optim],
+                        feed_dict={
+                            self.input: input_,
+                            self.target: target_,
+                            self.ident: n,
+                        })
+
+                total_loss += loss
+
+            self.log['train_loss'].append(total_loss/len(train_idents))
 
     def model_save(self, num):
         self.saver.save(self.sess, 'model/cdae_%d.ckpt' % (num))
@@ -211,5 +234,3 @@ class AutoEncoder(object):
         recon_list = np.squeeze(np.asarray(recon_list))
 
         return recon_list
-
-
