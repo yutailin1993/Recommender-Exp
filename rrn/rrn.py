@@ -252,19 +252,27 @@ class RRN(object):
         """
         raise NotImplementedError
 
-    def train(self, df, user_map, item_map, initial_time, top_rank=None):
+    def train(self, df, user_map, item_map, initial_time, all_user_item_num,
+              user_cluster_map=None, item_cluster_map=None, top_rank=None):
         """Train model.
 
         """
         assert self.is_train is True
+
+        all_user_num = all_user_item_num[0]
+        all_item_num = all_user_item_num[1]
         if self.loss_function == 'rmse':
             prep = Preprocess(
-                    df, user_map, item_map, initial_time, 'rating', 
+                    df, user_map, item_map, initial_time, 'rating',
+                    all_user_num, all_item_num, user_cluster_map, item_cluster_map,
+                    batch_size=self.user_hparas['BATCH_SIZE'],
                     user_time_interval=self.user_hparas['TIME_INTERVAL'],
                     item_time_interval=self.item_hparas['TIME_INTERVAL'])
         elif self.loss_function == 'log_loss':
             prep = Preprocess(
                     df, user_map, item_map, initial_time, 'zero_one',
+                    all_user_num, all_item_num, user_cluster_map, item_cluster_map,
+                    batch_size=self.user_hparas['BATCH_SIZE'],
                     user_time_interval=self.user_hparas['TIME_INTERVAL'],
                     item_time_interval=self.item_hparas['TIME_INTERVAL'])
 
@@ -355,13 +363,20 @@ class RRN(object):
         """
         self.saver.restore(self.sess, 'model/rrn_%s.ckpt' % (name))
 
-    def test_ap(self, df, user_map, item_map, initial_time, N):
+    def test_ap(self, df, user_map, item_map, all_user_item_num, initial_time, N,
+                user_cluster_map=None, item_cluster_map=None):
         """Test model by average precision
 
         """
         assert self.is_train is False
+
+        all_user_num = all_user_item_num[0]
+        all_item_num = all_user_item_num[1]
+
         prep = Preprocess(
                 df, user_map, item_map, initial_time, 'zero_one',
+                all_user_num, all_item_num, user_cluster_map, item_cluster_map,
+                batch_size=self.user_hparas['BATCH_SIZE'],
                 user_time_interval=self.user_hparas['TIME_INTERVAL'],
                 item_time_interval=self.item_hparas['TIME_INTERVAL'])
 
@@ -401,7 +416,6 @@ class RRN(object):
         ground_truth_top_N = np.count_nonzero(ground_truths, axis=0).argsort()[::-1][:N]
         logits_rec = np.mean(logits, axis=1)
         
-
         logits_top_N = logits_rec.argsort()[::-1][:N]
 
         recall = recall_at_N(logits_top_N, ground_truth_top_N)
@@ -410,20 +424,27 @@ class RRN(object):
         return recall, ap
 
     def test(self, df, user_map, item_map, initial_time,
+             all_user_item_num, user_cluster_map=None, item_cluster_map=None,
              individually=None, top_rank=None):
         """Test model.
 
         """
         assert self.is_train is False
 
+        all_user_num = all_user_item_num[0]
+        all_item_num = all_user_item_num[1]
         if self.loss_function == 'rmse':
             prep = Preprocess(
                     df, user_map, item_map, initial_time, 'rating',
+                    all_user_num, all_item_num, user_cluster_map, item_cluster_map,
+                    batch_size=self.user_hparas['BATCH_SIZE'],
                     user_time_interval=self.user_hparas['TIME_INTERVAL'],
                     item_time_interval=self.item_hparas['TIME_INTERVAL'])
         elif self.loss_function == 'log_loss':
             prep = Preprocess(
                     df, user_map, item_map, initial_time, 'zero_one',
+                    all_user_num, all_item_num, user_cluster_map, item_cluster_map,
+                    batch_size=self.user_hparas['BATCH_SIZE'],
                     user_time_interval=self.user_hparas['TIME_INTERVAL'],
                     item_time_interval=self.item_hparas['TIME_INTERVAL'])
 

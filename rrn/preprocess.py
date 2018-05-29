@@ -8,7 +8,8 @@ class Preprocess(object):
     Also build ground_truth and selected latent factor of user and item.
     """
 
-    def __init__(self, dataframe, user_map, item_map, initial_time, mode,
+    def __init__(self, dataframe, user_map, item_map, initial_time, mode, all_user_num,
+                 all_item_num, user_cluster_map, item_cluster_map,
                  batch_size=64, user_time_interval=7, item_time_interval=7):
         self.batch_size = batch_size
         self.user_time_interval = user_time_interval*24*3600
@@ -18,6 +19,19 @@ class Preprocess(object):
         self.initial_time = initial_time
         self.df = dataframe
         self.mode = mode
+
+        self.all_user_num = all_user_num
+        self.all_item_num = all_item_num
+
+        if user_cluster_map is None:
+            self.user_cluster_map = user_map
+        else:
+            self.user_cluster_map = user_cluster_map
+
+        if item_cluster_map is None:
+            self.item_cluster_map = item_map
+        else:
+            self.item_cluster_map = item_cluster_map
 
         self._build_essential()
 
@@ -35,8 +49,6 @@ class Preprocess(object):
                 // self.item_time_interval + 1
         self.userList = np.unique(self.df['uid'])
         self.itemList = np.unique(self.df['iid'])
-        self.userNum = len(self.user_map)
-        self.itemNum = len(self.item_map)
 
     def _fill_time(self, phase):
         """Fill matrix with corresponding wall clock.
@@ -70,7 +82,7 @@ class Preprocess(object):
             usr_info = self.df.loc[self.df['uid'] == id_].as_matrix()
             for info in usr_info:
                 season = (info[4] - self.start_time) // self.user_time_interval
-                item_idx = self.item_map[info[1]]  # df 'iid' start from "1" not "0"
+                item_idx = self.item_cluster_map[info[1]]  # df 'iid' start from "1" not "0"
                 if self.mode == 'rating':
                     rating = info[2]
                 elif self.mode == 'zero_one':
@@ -82,7 +94,7 @@ class Preprocess(object):
             item_info = self.df.loc[self.df['iid'] == id_].as_matrix()
             for info in item_info:
                 season = (info[4] - self.start_time) // self.item_time_interval
-                usr = self.user_map[info[0]]
+                usr = self.user_cluster_map[info[0]]
                 if self.mode == 'rating':
                     rating = info[2]
                 elif self.mode == 'zero_one':
@@ -115,7 +127,7 @@ class Preprocess(object):
             self.matrix: user's rating matrix in time sequence.
         """
         self.matrix = np.zeros(
-                shape=(self.batch_size, self.user_time_elapse, self.itemNum+3),
+                shape=(self.batch_size, self.user_time_elapse, self.all_item_num+3),
                 dtype=np.float32)
         self._fill_time('USER')
 
@@ -135,7 +147,7 @@ class Preprocess(object):
             self.matrix: item's rating matrix in time sequence.
         """
         self.matrix = np.zeros(
-                shape=(len(batch_item), self.item_time_elapse, self.userNum+3),
+                shape=(len(batch_item), self.item_time_elapse, self.all_user_num+3),
                 dtype=np.float32)
         self._fill_time('ITEM')
 
@@ -239,7 +251,7 @@ class Preprocess(object):
             batch_user = np.random.choice(self.userList, size=self.batch_size)
         else:
             start = sector * self.batch_size
-            if start + self.batch_size > len(self.userList):
+            if start + self.batch_size >= len(self.userList):
                 batch_user = self.userList[-self.batch_size:]
             else:
                 batch_user = self.userList[start: start + self.batch_size]
