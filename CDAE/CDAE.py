@@ -41,7 +41,7 @@ class AutoEncoder(object):
         self.hidden_units = hidden_units
         self.loss_function = loss_function
         self.optimizer = optimizer
-        self.log = {'train_loss': [], 'ap@5': []}
+        self.log = {'train_loss': [], 'ap@5': [], 'recall@5': []}
 
         if self.mode != 'user' and self.mode != 'item':
             print (self.mode)
@@ -167,10 +167,11 @@ class AutoEncoder(object):
         for epoch in trange(self.epochs):
             total_loss = 0
             ap_at_5 = []
+            recall_at_5 = []
 
-            for n in train_idents:
-                input_ = [rating[n]]
-                target_ = [rating[n]]
+            for idx, n in enumerate(train_idents):
+                input_ = [rating[idx]]
+                target_ = [rating[idx]]
 
                 recon, loss, _ = self.sess.run(
                         [self.decode, self.loss, self.optim],
@@ -181,11 +182,18 @@ class AutoEncoder(object):
                         })
 
                 total_loss += loss
-                top5 = get_topN(recon, train_indices[n])
-                ap_at_5.append(avg_precision(top5, test_indices[n]))
+                top5 = get_topN(recon, train_indices[idx])
+                iAP = avg_precision(top5, test_indices[idx])
+                iRecall = recall_at_N(top5, test_indices[idx])
+
+                if iAP is not None:
+                    ap_at_5.append(iAP)
+                if iRecall is not None:
+                    recall_at_5.append(iRecall)
 
             self.log['train_loss'].append(total_loss/train_num)
             self.log['ap@5'].append(sum(ap_at_5)/len(ap_at_5))
+            self.log['recall@5'].append(sum(recall_at_5)/len(recall_at_5))
 
     def train_all(self, rating, train_idents):
         """Train with all rating without validation
@@ -194,9 +202,9 @@ class AutoEncoder(object):
         for epoch in trange(self.epochs):
             total_loss = 0
             
-            for n in train_idents:
-                input_ = [rating[n]]
-                target_ = [rating[n]]
+            for idx, n in enumerate(train_idents):
+                input_ = [rating[idx]]
+                target_ = [rating[idx]]
 
                 recon, loss, _ = self.sess.run(
                         [self.decode, self.loss, self.optim],
@@ -219,8 +227,8 @@ class AutoEncoder(object):
     def predict(self, rating, test_idents):
         recon_list = []
 
-        for n in test_idents:
-            input_ = [rating[n]]
+        for idx, n in enumerate(test_idents):
+            input_ = [rating[idx]]
 
             recon = self.sess.run(
                     self.decode,

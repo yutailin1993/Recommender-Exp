@@ -46,9 +46,10 @@ def recall_at_N(topN, indices):
         if topN[i] in indices:
             hit_count += 1
 
-    recall = hit_count / len(indices)
-
-    return recall
+    try:
+        return hit_count / len(indices)
+    except ZeroDivisionError:
+        return None
 
 
 def avg_precision(topN, indices):
@@ -72,9 +73,9 @@ def avg_precision(topN, indices):
             sum_p += hit_count / (i+1)
 
     try:
-        return sum_p / min(N, max(1, len(indices)))
+        return sum_p / min(N, len(indices))
     except ZeroDivisionError:
-        return 0
+        return None
 
 
 def get_topN(rec_matrix, train_index, N=5):
