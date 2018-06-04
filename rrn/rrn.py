@@ -164,24 +164,28 @@ class RRN(object):
         """Get input tensor.
 
         """
+        if self.is_train:
+            elapse = self.user_hparas['TRAIN_TIME_ELAPSE']
+        else:
+            elapse = self.user_hparas['TEST_TIME_ELAPSE']
         with tf.variable_scope('inputs'):
             self.user_input = tf.placeholder(
                     dtype=tf.float32,
-                    shape=(self.user_hparas['BATCH_SIZE'],
-                           None,
+                    shape=(None,
+                           elapse,
                            self.user_hparas['VECTOR_LENGTH']),
                     name='user_in')
             self.item_input = tf.placeholder(
                     dtype=tf.float32,
-                    shape=(self.item_hparas['BATCH_SIZE'],
-                           None,
+                    shape=(None,
+                           elapse,
                            self.item_hparas['VECTOR_LENGTH']),
                     name='item_in')
 
         with tf.variable_scope('stationary_factor'):
             self.user_stationary_factor = tf.placeholder(
                     dtype=tf.float32,
-                    shape=(self.user_hparas['BATCH_SIZE'],
+                    shape=(None,
                            self.user_hparas['STATIONARY_LENGTH']),
                     name='user_stationary')
             self.item_stationary_factor = tf.placeholder(
@@ -193,7 +197,7 @@ class RRN(object):
         with tf.variable_scope('ground_truth'):
             self.ground_truth = tf.placeholder(
                     dtype=tf.float32,
-                    shape=(None, self.user_hparas['BATCH_SIZE'],
+                    shape=(elapse, None,
                            self.item_hparas['BATCH_SIZE']))
 
         if self.weighted is not None:
