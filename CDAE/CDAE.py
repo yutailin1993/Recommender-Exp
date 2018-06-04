@@ -14,7 +14,7 @@ class AutoEncoder(object):
     def __init__(
             self, user_num, item_num, mode, with_weights=False,
             dropout_rate=0.2, lr=0.01, hidden_units=20, epochs=100,
-            loss_function='rmse', b1=0.5, optimizer='adagrad'):
+            batch_size=64, loss_function='rmse', b1=0.5, optimizer='adagrad'):
         '''
         -- Args --
             user_num: number of users
@@ -24,7 +24,8 @@ class AutoEncoder(object):
                        otherwise, denoise AutoEncoder
             lr: learning rate
             hidden_units: number of middle layers units
-            epochs: number of learning epoch
+            epochs: number of learning epochs
+            batch_size: mini batch size
             b1: beta1, for adadelta optimizer
             optimizer: specify which optimizer to use
             loss_function: specify which loss function to use
@@ -37,6 +38,7 @@ class AutoEncoder(object):
         self.b1 = b1
         self.lr = lr
         self.epochs = epochs
+        self.batch_size = batch_size
         self.with_weights = with_weights
         self.hidden_units = hidden_units
         self.loss_function = loss_function
@@ -78,7 +80,7 @@ class AutoEncoder(object):
                     initializer=tf.random_normal_initializer(stddev=0.5),
                     dtype=tf.float32)
 
-            self.ident = tf.placeholder(tf.int32, shape=[])
+            self.ident = tf.placeholder(tf.int32, shape=[None])
 
             self.specVector = tf.nn.embedding_lookup(self.vector_matrix, self.ident)
 
@@ -126,14 +128,14 @@ class AutoEncoder(object):
     def _get_inputs(self):
         if self.mode == 'user':
             self.input = tf.placeholder(tf.float32,
-                    shape=(1, self.item_num), name='input')
+                    shape=(None, self.item_num), name='input')
             self.target = tf.placeholder(tf.float32,
-                    shape=(1, self.item_num), name='target')
+                    shape=(None, self.item_num), name='target')
         elif self.mode == 'item':
             self.input = tf.placeholder(tf.float32,
-                    shape=(1, self.user_num), name='input')
+                    shape=(None, self.user_num), name='input')
             self.target = tf.placeholder(tf.float32,
-                    shape=(1, self.user_num), name='target')
+                    shape=(None, self.user_num), name='target')
 
     def _build_optimizer(self):
         '''
@@ -164,34 +166,49 @@ class AutoEncoder(object):
         elif self.mode == 'item':
             train_num = self.item_num
 
+        num_batch = len(train_idents) // self.batch_size
+        train_idents_idx = [k for k in range(len(train_idents))]
+
         for epoch in trange(self.epochs):
             total_loss = 0
             ap_at_5 = []
             recall_at_5 = []
 
-            for idx, n in enumerate(train_idents):
-                input_ = [rating[idx]]
-                target_ = [rating[idx]]
+            for n in range(num_batch+1):
+                if n < num_batch:
+                    valid_num = self.batch_size
+                else:
+                    valid_num = len(train_idents) - n * self.batch_size
+
+                if valid_num == 0:
+                    break
+
+                start = n * self.batch_size
+                input_ = np.take(rating, train_idents_idx[start: start+valid_num], axis=0)
+                target_ = input_
+                idents_ = train_idents[start: start+valid_num]
 
                 recon, loss, _ = self.sess.run(
                         [self.decode, self.loss, self.optim],
                         feed_dict={
                             self.input: input_,
                             self.target: target_,
-                            self.ident: n,
+                            self.ident: idents_,
                         })
 
                 total_loss += loss
-                top5 = get_topN(recon, train_indices[idx])
-                iAP = avg_precision(top5, test_indices[idx])
-                iRecall = recall_at_N(top5, test_indices[idx])
 
-                if iAP is not None:
-                    ap_at_5.append(iAP)
-                if iRecall is not None:
-                    recall_at_5.append(iRecall)
+                for idx in range(start, start+valid_num):
+                    top5 = get_topN(recon, train_indices[idx])
+                    iAP = avg_precision(top5, test_indices[idx])
+                    iRecall = recall_at_N(top5, test_indices[idx])
 
-            self.log['train_loss'].append(total_loss/train_num)
+                    if iAP is not None:
+                        ap_at_5.append(iAP)
+                    if iRecall is not None:
+                        recall_at_5.append(iRecall)
+
+            self.log['train_loss'].append(total_loss/len(train_idents))
             self.log['ap@5'].append(sum(ap_at_5)/len(ap_at_5))
             self.log['recall@5'].append(sum(recall_at_5)/len(recall_at_5))
 
