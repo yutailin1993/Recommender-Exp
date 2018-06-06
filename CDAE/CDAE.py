@@ -216,19 +216,33 @@ class AutoEncoder(object):
         """Train with all rating without validation
 
         """
+
+        num_batch = len(train_idents) // self.batch_size
+        train_idents_idx = [k for k in range(len(train_idents))]
+
         for epoch in trange(self.epochs):
             total_loss = 0
             
-            for idx, n in enumerate(train_idents):
-                input_ = [rating[idx]]
-                target_ = [rating[idx]]
+            for n in range(num_batch+1):
+                if n < num_batch:
+                    valid_num = self.batch_size
+                else:
+                    valid_num = len(train_idents) - n * self.batch_size
+
+                if valid_num == 0:
+                    break
+
+                start = n * self.batch_size
+                input_ = np.take(rating, train_idents_idx[start: start+valid_num], axis=0)
+                target_ = input_
+                idents_ = train_idents[start: start+valid_num]
 
                 recon, loss, _ = self.sess.run(
                         [self.decode, self.loss, self.optim],
                         feed_dict={
                             self.input: input_,
                             self.target: target_,
-                            self.ident: n,
+                            self.ident: idents_,
                         })
 
                 total_loss += loss
@@ -244,14 +258,27 @@ class AutoEncoder(object):
     def predict(self, rating, test_idents):
         recon_list = []
 
-        for idx, n in enumerate(test_idents):
-            input_ = [rating[idx]]
+        num_batch = len(test_idents) // self.batch_size
+        test_idents_idx = [k for k in range(len(test_idents))]
+
+        for n in range(num_batch+1):
+            if n < num_batch:
+                valid_num = self.batch_size
+            else:
+                valid_num = len(test_idents) - n * self.batch_size
+
+            if valid_num == 0:
+                break
+
+            start = n * self.batch_size
+            input_ = np.take(rating, test_idents_idx[start: start+valid_num], axis=0)
+            idents_ = test_idents[start: start+valid_num]
 
             recon = self.sess.run(
                     self.decode,
                     feed_dict={
                         self.input: input_,
-                        self.ident: n
+                        self.ident: idents_
                     })
 
             recon_list.append(recon)
