@@ -67,6 +67,10 @@ def calculate_cluster_top(allData, total_usr, total_item, NUM_CLUSTER=10):
     for c in range(NUM_CLUSTER):
         train_user_c = allData['LABEL_INDEX'][c]
         test_user_c = [x for x in allData['LABEL_INDEX'][c] if x in allData['TEST_USER_NOW']]
+
+        if len(test_user_c) == 0:
+            continue
+
         train_matrix_c = np.take(allData['TRAIN_MATRIX'], train_user_c, axis=0)
         test_matrix_c = np.take(allData['TEST_MATRIX_NOW'], test_user_c, axis=0)
 
@@ -82,6 +86,7 @@ def calculate_cluster_top(allData, total_usr, total_item, NUM_CLUSTER=10):
         autoEncoder.model_load(1)
 
         autoEncoder.train_all(rating=train_matrix_c, train_idents=train_user_c)
+
         test_out = autoEncoder.predict(test_matrix_c, test_user_c)
 
         test_out_upper_quartile = []
@@ -99,10 +104,10 @@ def calculate_cluster_top(allData, total_usr, total_item, NUM_CLUSTER=10):
     return cluster_top
 
 
-def get_score_top(score_map):
+def get_score_top(score_map, N=10):
     sorted_rank = sorted(score_map.items(), key=operator.itemgetter(1), reverse=True)
     sorted_rank = np.asarray(sorted_rank)
 
-    top_N = np.asarray(sorted_rank[:, 0][:10], dtype=np.int32)
+    top_N = np.asarray(sorted_rank[:, 0][:N], dtype=np.int32)
 
     return top_N

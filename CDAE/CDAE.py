@@ -161,11 +161,6 @@ class AutoEncoder(object):
         self.sess.run(tf.global_variables_initializer())
 
     def train(self, rating, train_idents, train_indices, test_indices):
-        if self.mode == 'user':
-            train_num = self.user_num
-        elif self.mode == 'item':
-            train_num = self.item_num
-
         num_batch = len(train_idents) // self.batch_size
         train_idents_idx = [k for k in range(len(train_idents))]
 
@@ -256,10 +251,12 @@ class AutoEncoder(object):
         self.saver.restore(self.sess, 'model/cdae_%d.ckpt' % (num))
 
     def predict(self, rating, test_idents):
-        recon_list = []
+        # recon_list = []
 
         num_batch = len(test_idents) // self.batch_size
         test_idents_idx = [k for k in range(len(test_idents))]
+
+        recon_list = np.zeros(shape=(rating.shape[0], rating.shape[1]), dtype=np.float32)
 
         for n in range(num_batch+1):
             if n < num_batch:
@@ -281,8 +278,9 @@ class AutoEncoder(object):
                         self.ident: idents_
                     })
 
-            recon_list.append(recon)
+            # recon_list.append(recon)
+            recon_list[start: start+valid_num, :] = recon
 
-        recon_list = np.squeeze(np.asarray(recon_list))
+        # recon_list = np.squeeze(np.asarray(recon_list), axis=0)
 
         return recon_list
