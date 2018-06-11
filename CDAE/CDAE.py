@@ -160,7 +160,7 @@ class AutoEncoder(object):
     def _init_vars(self):
         self.sess.run(tf.global_variables_initializer())
 
-    def train(self, rating, train_idents, train_indices, test_indices):
+    def train(self, rating, train_idents, train_indices=None, test_indices=None):
         num_batch = len(train_idents) // self.batch_size
         train_idents_idx = [k for k in range(len(train_idents))]
 
@@ -179,7 +179,9 @@ class AutoEncoder(object):
                     break
 
                 start = n * self.batch_size
-                input_ = np.take(rating, train_idents_idx[start: start+valid_num], axis=0)
+                inputs = np.take(rating, train_idents_idx[start: start+valid_num], axis=0)
+
+                input_, train_indices, test_indices = gen_train_test(inputs)
                 target_ = input_
                 idents_ = train_idents[start: start+valid_num]
 
@@ -193,7 +195,7 @@ class AutoEncoder(object):
 
                 total_loss += loss
 
-                for idx in range(start, start+valid_num):
+                for idx in range(valid_num):
                     top5 = get_topN(recon, train_indices[idx])
                     iAP = avg_precision(top5, test_indices[idx])
                     iRecall = recall_at_N(top5, test_indices[idx])

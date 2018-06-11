@@ -2,7 +2,7 @@ from sklearn.model_selection import train_test_split
 import numpy as np
 
 
-def gen_train_test(inputs, ratio=0.3):
+def gen_train_test(inputs, ratio=0.2):
 
     train_rating = np.zeros(
             (inputs.shape[0], inputs.shape[1]),
