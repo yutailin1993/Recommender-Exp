@@ -2,11 +2,11 @@ from sklearn.model_selection import train_test_split
 import numpy as np
 
 
-def gen_train_test(inputs, ratio=0.2):
+def gen_train_test(inputs, ratio=0.3):
 
     train_rating = np.zeros(
             (inputs.shape[0], inputs.shape[1]),
-            dtype=np.float32)
+            dtype=np.int8)
 
     train_indices = []
     test_indices = []
@@ -40,14 +40,20 @@ def recall_at_N(topN, indices):
     -- Return --:
         recall: user's average precision
     """
-    N = len(topN)
-    hit_count = 0
-    for i in range(N):
-        if topN[i] in indices:
-            hit_count += 1
+    batch_recall_sum = 0.
+    effect_sum = 0
+    for i in range(topN.shape[0]):
+        topN_set_i = set(topN[i])
+        indice_set_i = set(indices[i])
+        hit_count = 0
+
+        if len(indices[i]) != 0:
+            hit_count = len(topN_set_i & indice_set_i)
+            batch_recall_sum += hit_count / len(indices[i])
+            effect_sum += 1
 
     try:
-        return hit_count / len(indices)
+        return batch_recall_sum / effect_sum
     except ZeroDivisionError:
         return None
 
@@ -63,30 +69,41 @@ def avg_precision(topN, indices):
     -- Return --:
         ap: user's average precision
     '''
-    N = len(topN)
-    sum_p = 0.
-    hit_count = 0
-
-    for i in range(N):
-        if topN[i] in indices:
-            hit_count += 1
-            sum_p += hit_count / (i+1)
+    N = topN.shape[1]
+    batch_sum_p = 0.
+    effect_sum = 0
+    
+    for i in range(topN.shape[0]):
+        sum_p = 0.
+        hit_count = 0
+        for j in range(N):
+            if topN[i][j] in indices[i]:
+                hit_count += 1
+                sum_p += hit_count / (j+1)
+        try:
+            batch_sum_p += sum_p/min(N, len(indices[i]))
+            effect_sum += 1
+        except ZeroDivisionError:
+            continue
 
     try:
-        return sum_p / min(N, len(indices))
+        return batch_sum_p / effect_sum
     except ZeroDivisionError:
-        return None
+        None
 
 
 def get_topN(rec_matrix, train_index, N=5):
 
-    topN = []
-    recon_rank = rec_matrix[0].argsort()[::-1]
+    topN = np.zeros((rec_matrix.shape[0], N), dtype=np.int32)
+    recon_rank = rec_matrix.argsort()[:, ::-1]
 
-    for rank_idx in recon_rank:
-        if len(topN) == N:
-            break
-        if rank_idx not in train_index:
-            topN.append(rank_idx)
+    for i in range(rec_matrix.shape[0]):
+        topN_idx = 0
+        for rank_idx in recon_rank[i]:
+            if topN_idx == N:
+                break
+            if rank_idx not in train_index[i]:
+                topN[i][topN_idx] = rank_idx
+                topN_idx += 1
 
     return topN

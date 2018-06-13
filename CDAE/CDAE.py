@@ -13,7 +13,7 @@ class AutoEncoder(object):
 
     def __init__(
             self, user_num, item_num, mode, with_weights=False,
-            dropout_rate=0.2, lr=0.01, hidden_units=20, epochs=100,
+            dropout_rate=0.2, lr=0.01, hidden_units=20, epochs=100, is_cluster=False,
             batch_size=64, loss_function='rmse', b1=0.5, optimizer='adagrad'):
         '''
         -- Args --
@@ -29,6 +29,7 @@ class AutoEncoder(object):
             b1: beta1, for adadelta optimizer
             optimizer: specify which optimizer to use
             loss_function: specify which loss function to use
+            is_cluster: specify if is in cluster mode
         '''
 
         self.user_num = user_num
@@ -43,7 +44,8 @@ class AutoEncoder(object):
         self.hidden_units = hidden_units
         self.loss_function = loss_function
         self.optimizer = optimizer
-        self.log = {'train_loss': [], 'ap@5': [], 'recall@5': []}
+        self.is_cluster = is_cluster
+        self.log = {'train_loss': [], 'ap@5': [], 'recall@5': [], 'recall@10': []}
 
         if self.mode != 'user' and self.mode != 'item':
             print (self.mode)
@@ -168,6 +170,7 @@ class AutoEncoder(object):
             total_loss = 0
             ap_at_5 = []
             recall_at_5 = []
+            recall_at_10 = []
 
             for n in range(num_batch+1):
                 if n < num_batch:
@@ -179,9 +182,10 @@ class AutoEncoder(object):
                     break
 
                 start = n * self.batch_size
-                inputs = np.take(rating, train_idents_idx[start: start+valid_num], axis=0)
+                # inputs = np.take(rating, train_idents_idx[start: start+valid_num], axis=0)
 
-                input_, train_indices, test_indices = gen_train_test(inputs)
+                # input_, train_indices, test_indices = gen_train_test(inputs)
+                input_ = np.take(rating, train_idents_idx[start: start+valid_num], axis=0)
                 target_ = input_
                 idents_ = train_idents[start: start+valid_num]
 
@@ -194,20 +198,25 @@ class AutoEncoder(object):
                         })
 
                 total_loss += loss
-
-                for idx in range(valid_num):
-                    top5 = get_topN(recon, train_indices[idx])
-                    iAP = avg_precision(top5, test_indices[idx])
-                    iRecall = recall_at_N(top5, test_indices[idx])
+                
+                if epoch % (self.epochs*0.1) == 0:
+                    top10 = get_topN(recon, train_indices[start: start+valid_num], N=10)
+                    top5 = get_topN(recon, train_indices[start: start+valid_num], N=5)
+                    iAP = avg_precision(top5, test_indices[start: start+valid_num])
+                    iRecall_5 = recall_at_N(top5, test_indices[start: start+valid_num])
+                    iRecall_10 = recall_at_N(top10, test_indices[start: start+valid_num])
 
                     if iAP is not None:
                         ap_at_5.append(iAP)
-                    if iRecall is not None:
-                        recall_at_5.append(iRecall)
+                    if iRecall_5 is not None:
+                        recall_at_5.append(iRecall_5)
+                    if iRecall_10 is not None:
+                        recall_at_10.append(iRecall_10)
 
             self.log['train_loss'].append(total_loss/len(train_idents))
             self.log['ap@5'].append(sum(ap_at_5)/len(ap_at_5))
             self.log['recall@5'].append(sum(recall_at_5)/len(recall_at_5))
+            self.log['recall@10'].append(sum(recall_at_10)/len(recall_at_10))
 
     def train_all(self, rating, train_idents):
         """Train with all rating without validation
