@@ -108,9 +108,12 @@ class RRN(object):
                 filter_ = tf.nn.relu(tf.sign(self.ground_truth[1:]))
                 if self.weighted is None:
                     if self.loss_function == 'rmse':
-                        self.loss = tf.reduce_sum(tf.multiply(tf.square(
-                            tf.subtract(self.ground_truth[1:], self.logits[:-1])),
-                            filter_)) + 1*self.turn*user_reg + 1*(1-self.turn)*item_reg
+                        # self.loss = tf.reduce_sum(tf.multiply(tf.square(
+                        #     tf.subtract(self.ground_truth[1:], self.logits[:-1])),
+                        #     filter_)) + 1*self.turn*user_reg + 1*(1-self.turn)*item_reg
+                        self.loss = tf.reduce_sum(tf.square(
+                            tf.subtract(self.ground_truth[1:], self.logits[:-1]))) + \
+                            1 * self.turn * user_reg + 1 * (1-self.turn) * item_reg
 
                     elif self.loss_function == 'log_loss':
                         self.loss = tf.reduce_mean(
@@ -269,6 +272,7 @@ class RRN(object):
             prep = Preprocess(
                     df, user_map, item_map, initial_time, 'rating',
                     all_user_num, all_item_num, user_cluster_map, item_cluster_map,
+                    self.user_hparas['TRAIN_TIME_ELAPSE'], initial_time,
                     batch_size=self.user_hparas['BATCH_SIZE'],
                     user_time_interval=self.user_hparas['TIME_INTERVAL'],
                     item_time_interval=self.item_hparas['TIME_INTERVAL'])
@@ -276,6 +280,7 @@ class RRN(object):
             prep = Preprocess(
                     df, user_map, item_map, initial_time, 'zero_one',
                     all_user_num, all_item_num, user_cluster_map, item_cluster_map,
+                    self.user_hparas['TRAIN_TIME_ELAPSE'], initial_time,
                     batch_size=self.user_hparas['BATCH_SIZE'],
                     user_time_interval=self.user_hparas['TIME_INTERVAL'],
                     item_time_interval=self.item_hparas['TIME_INTERVAL'])
@@ -380,6 +385,7 @@ class RRN(object):
         prep = Preprocess(
                 df, user_map, item_map, initial_time, 'zero_one',
                 all_user_num, all_item_num, user_cluster_map, item_cluster_map,
+                self.user_hparas['TEST_TIME_ELAPSE'],
                 batch_size=self.user_hparas['BATCH_SIZE'],
                 user_time_interval=self.user_hparas['TIME_INTERVAL'],
                 item_time_interval=self.item_hparas['TIME_INTERVAL'])
@@ -427,7 +433,7 @@ class RRN(object):
 
         return recall, ap
 
-    def test(self, df, user_map, item_map, initial_time,
+    def test(self, df, user_map, item_map, initial_time, start_time,
              all_user_item_num, user_cluster_map=None, item_cluster_map=None,
              individually=None, top_rank=None):
         """Test model.
@@ -441,6 +447,7 @@ class RRN(object):
             prep = Preprocess(
                     df, user_map, item_map, initial_time, 'rating',
                     all_user_num, all_item_num, user_cluster_map, item_cluster_map,
+                    self.user_hparas['TEST_TIME_ELAPSE'], start_time,
                     batch_size=self.user_hparas['BATCH_SIZE'],
                     user_time_interval=self.user_hparas['TIME_INTERVAL'],
                     item_time_interval=self.item_hparas['TIME_INTERVAL'])
@@ -448,6 +455,7 @@ class RRN(object):
             prep = Preprocess(
                     df, user_map, item_map, initial_time, 'zero_one',
                     all_user_num, all_item_num, user_cluster_map, item_cluster_map,
+                    self.user_hparas['TEST_TIME_ELAPSE'], start_time,
                     batch_size=self.user_hparas['BATCH_SIZE'],
                     user_time_interval=self.user_hparas['TIME_INTERVAL'],
                     item_time_interval=self.item_hparas['TIME_INTERVAL'])

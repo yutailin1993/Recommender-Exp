@@ -9,7 +9,7 @@ class Preprocess(object):
     """
 
     def __init__(self, dataframe, user_map, item_map, initial_time, mode, all_user_num,
-                 all_item_num, user_cluster_map, item_cluster_map,
+                 all_item_num, user_cluster_map, item_cluster_map, time_elapse, start_time,
                  batch_size=64, user_time_interval=7, item_time_interval=7):
         self.batch_size = batch_size
         self.user_time_interval = user_time_interval*24*3600
@@ -22,6 +22,11 @@ class Preprocess(object):
 
         self.all_user_num = all_user_num
         self.all_item_num = all_item_num
+
+        self.user_time_elapse = time_elapse
+        self.item_time_elapse = time_elapse
+
+        self.start_time = start_time
 
         if user_cluster_map is None:
             self.user_cluster_map = user_map
@@ -41,12 +46,6 @@ class Preprocess(object):
         Get essential information for building input_matrix, ground_truth, 
         and others.
         """
-        self.start_time = min(self.df['timestamp'])
-        self.end_time = max(self.df['timestamp'])
-        self.user_time_elapse = (self.end_time - self.start_time) \
-                // self.user_time_interval + 1
-        self.item_time_elapse = (self.end_time - self.start_time) \
-                // self.item_time_interval + 1
         self.userList = np.unique(self.df['uid'])
         self.itemList = np.unique(self.df['iid'])
 
