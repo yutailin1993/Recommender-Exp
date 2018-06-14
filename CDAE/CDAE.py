@@ -198,8 +198,8 @@ class AutoEncoder(object):
                         })
 
                 total_loss += loss
-                
-                if epoch % (self.epochs*0.1) == 0:
+
+                if epoch % (self.epochs*0.1) == 0 and epoch > 0:
                     top10 = get_topN(recon, train_indices[start: start+valid_num], N=10)
                     top5 = get_topN(recon, train_indices[start: start+valid_num], N=5)
                     iAP = avg_precision(top5, test_indices[start: start+valid_num])
@@ -214,9 +214,11 @@ class AutoEncoder(object):
                         recall_at_10.append(iRecall_10)
 
             self.log['train_loss'].append(total_loss/len(train_idents))
-            self.log['ap@5'].append(sum(ap_at_5)/len(ap_at_5))
-            self.log['recall@5'].append(sum(recall_at_5)/len(recall_at_5))
-            self.log['recall@10'].append(sum(recall_at_10)/len(recall_at_10))
+
+            if epoch % (self.epochs*0.1) == 0 and epoch > 0:
+                self.log['ap@5'].append(sum(ap_at_5)/len(ap_at_5))
+                self.log['recall@5'].append(sum(recall_at_5)/len(recall_at_5))
+                self.log['recall@10'].append(sum(recall_at_10)/len(recall_at_10))
 
     def train_all(self, rating, train_idents):
         """Train with all rating without validation
