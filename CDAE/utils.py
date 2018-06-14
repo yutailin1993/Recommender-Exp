@@ -44,12 +44,12 @@ def recall_at_N(topN, indices, N=5):
     effect_sum = 0
     for i in range(topN.shape[0]):
         topN_set_i = set(topN[i][:N])
-        indice_set_i = set(indices[i])
+        indice_set_i = set(indices[i][:N])
         hit_count = 0
 
         if len(indices[i]) != 0:
             hit_count = len(topN_set_i & indice_set_i)
-            batch_recall_sum += hit_count / min(N, len(indices[i]))
+            batch_recall_sum += hit_count / len(indices[i])
             effect_sum += 1
 
     try:
