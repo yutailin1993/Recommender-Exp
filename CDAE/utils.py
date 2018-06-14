@@ -30,7 +30,7 @@ def gen_train_test(inputs, ratio=0.3):
     return train_rating, train_indices, test_indices
 
 
-def recall_at_N(topN, indices):
+def recall_at_N(topN, indices, N=5):
     """Calculate Recall
 
     -- Args --:
@@ -43,13 +43,13 @@ def recall_at_N(topN, indices):
     batch_recall_sum = 0.
     effect_sum = 0
     for i in range(topN.shape[0]):
-        topN_set_i = set(topN[i])
+        topN_set_i = set(topN[i][:N])
         indice_set_i = set(indices[i])
         hit_count = 0
 
         if len(indices[i]) != 0:
             hit_count = len(topN_set_i & indice_set_i)
-            batch_recall_sum += hit_count / len(indices[i])
+            batch_recall_sum += hit_count / min(N, len(indices[i]))
             effect_sum += 1
 
     try:
