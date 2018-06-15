@@ -49,7 +49,7 @@ def recall_at_N(topN, indices, N=5):
 
         if len(indices[i]) != 0:
             hit_count = len(topN_set_i & indice_set_i)
-            batch_recall_sum += hit_count / len(indices[i])
+            batch_recall_sum += hit_count / len(indice_set_i)
             effect_sum += 1
 
     try:
