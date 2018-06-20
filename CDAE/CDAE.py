@@ -13,7 +13,7 @@ class AutoEncoder(object):
 
     def __init__(
             self, user_num, item_num, mode, with_weights=False,
-            dropout_rate=0.2, lr=0.01, hidden_units=20, epochs=100, is_cluster=False,
+            dropout_rate=0.2, lr=0.01, hidden_units=20, epochs=100, 
             batch_size=64, loss_function='rmse', b1=0.5, optimizer='adagrad'):
         '''
         -- Args --
@@ -44,8 +44,7 @@ class AutoEncoder(object):
         self.hidden_units = hidden_units
         self.loss_function = loss_function
         self.optimizer = optimizer
-        self.is_cluster = is_cluster
-        self.log = {'train_loss': [], 'ap@5': [], 'recall@5': [], 'recall@10': []}
+        self.log = {'train_loss': [], 'ap@5': [], 'ap@10': [], 'recall@5': [], 'recall@10': []}
 
         if self.mode != 'user' and self.mode != 'item':
             print (self.mode)
@@ -120,10 +119,8 @@ class AutoEncoder(object):
                         tf.reduce_mean(tf.pow(self.target-self.decode, 2)))
 
             elif self.loss_function == 'log_loss':
-                self.loss = tf.reduce_mean(
-                        tf.reduce_sum(-self.target*tf.log(self.decode) - \
-                                (1-self.target)*tf.log(1-self.decode),
-                                reduction_indices=1))
+                self.loss = tf.reduce_sum(-self.target*tf.log(self.decode) - \
+                                (1-self.target)*tf.log(1-self.decode))
             else:
                 raise NotImplementedError
 
@@ -169,6 +166,7 @@ class AutoEncoder(object):
         for epoch in trange(self.epochs):
             total_loss = 0
             ap_at_5 = []
+            ap_at_10 = []
             recall_at_5 = []
             recall_at_10 = []
 
@@ -202,12 +200,15 @@ class AutoEncoder(object):
                 if epoch % (self.epochs*0.01) == 0 and epoch > 0:
                     top10 = get_topN(recon, train_indices[start: start+valid_num], N=10)
                     top5 = get_topN(recon, train_indices[start: start+valid_num], N=5)
-                    iAP = avg_precision(top5, test_indices[start: start+valid_num])
+                    iAP_5 = avg_precision(top5, test_indices[start: start+valid_num])
+                    iAP_10 = avg_precision(top10, test_indices[start: start+valid_num])
                     iRecall_5 = recall_at_N(top5, test_indices[start: start+valid_num], N=5)
                     iRecall_10 = recall_at_N(top10, test_indices[start: start+valid_num], N=10)
 
-                    if iAP is not None:
-                        ap_at_5.append(iAP)
+                    if iAP_5 is not None:
+                        ap_at_5.append(iAP_5)
+                    if iAP_10 is not None:
+                        ap_at_10.append(iAP_10)
                     if iRecall_5 is not None:
                         recall_at_5.append(iRecall_5)
                     if iRecall_10 is not None:
@@ -217,6 +218,7 @@ class AutoEncoder(object):
 
             if epoch % (self.epochs*0.01) == 0 and epoch > 0:
                 self.log['ap@5'].append(sum(ap_at_5)/len(ap_at_5))
+                self.log['ap@10'].append(sum(ap_at_10)/len(ap_at_10))
                 self.log['recall@5'].append(sum(recall_at_5)/len(recall_at_5))
                 self.log['recall@10'].append(sum(recall_at_10)/len(recall_at_10))
 
