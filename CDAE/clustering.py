@@ -84,7 +84,7 @@ def calculate_cluster_top(allData, total_usr, total_item, NUM_CLUSTER=10, batch_
                 batch_size=batch_size,
                 epochs=200)
 
-        # autoEncoder.model_load(1)
+        autoEncoder.model_load(1)
 
         autoEncoder.train_all(rating=train_matrix_c, train_idents=train_user_c)
 
