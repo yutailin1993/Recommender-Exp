@@ -225,7 +225,7 @@ class AutoEncoder(object):
 
             self.log['train_loss'].append(total_loss/len(train_idents))
 
-            if epoch % (self.epochs*0.01) == 0 and epoch > 0:
+            if epoch % (self.epochs*0.1) == 0 and epoch > 0:
                 self.log['ap@5'].append(sum(ap_at_5)/len(ap_at_5))
                 self.log['ap@10'].append(sum(ap_at_10)/len(ap_at_10))
                 self.log['recall@5'].append(sum(recall_at_5)/len(recall_at_5))
