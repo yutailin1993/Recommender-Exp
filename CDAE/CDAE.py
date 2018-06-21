@@ -124,8 +124,11 @@ class AutoEncoder(object):
                                 (1-self.target)*tf.log(1-self.decode),
                                 reduction_indices=1))
 
+                # self.loss = tf.reduce_sum(-self.target*tf.log(self.decode) - \
+                #         (1-self.target)*tf.log(self.decode))
+
             elif self.loss_function == 'log_loss':
-                self.loss = tf.losses.log_loss(self.target, self.logits)
+                self.loss = tf.losses.log_loss(self.target, self.decode)
 
             else:
                 raise NotImplementedError
