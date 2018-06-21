@@ -118,9 +118,15 @@ class AutoEncoder(object):
                 self.loss = tf.sqrt(
                         tf.reduce_mean(tf.pow(self.target-self.decode, 2)))
 
+            elif self.loss_function == 'cross_entropy':
+                self.loss = tf.reduce_mean(
+                        tf.reduce_sum(-self.target*tf.log(self.decode) - \
+                                (1-self.target)*tf.log(1-self.decode),
+                                reduction_indices=1))
+
             elif self.loss_function == 'log_loss':
-                self.loss = tf.reduce_sum(-self.target*tf.log(self.decode) - \
-                                (1-self.target)*tf.log(1-self.decode))
+                self.loss = tf.losses.log_loss(self.target, self.logits)
+
             else:
                 raise NotImplementedError
 

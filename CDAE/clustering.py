@@ -6,15 +6,15 @@ import tensorflow as tf
 from CDAE import AutoEncoder
 
 
-def count_score(top_lists, alpha=10):
+def count_score(top_lists, label_count, alpha=10):
     score_map = {}
 
-    for i in top_lists:
+    for list_id, i in enumerate(top_lists):
         for idx, j in enumerate(i):
             if j not in score_map:
-                score_map[j] = alpha / (idx+1)
+                score_map[j] = label_count[list_id] * alpha / (idx+1)
             else:
-                score_map[j] += alpha / (idx+1)
+                score_map[j] += label_count[list_id] * alpha / (idx+1)
 
     return score_map
 
@@ -61,7 +61,7 @@ def get_cluster_attributes(cluster_model, NUM_CLUSTER=10):
     return label_index, label_count
 
 
-def calculate_cluster_top(allData, total_usr, total_item, NUM_CLUSTER=10):
+def calculate_cluster_top(allData, total_usr, total_item, NUM_CLUSTER=10, batch_size=1):
     cluster_top = []
 
     for c in range(NUM_CLUSTER):
@@ -81,6 +81,7 @@ def calculate_cluster_top(allData, total_usr, total_item, NUM_CLUSTER=10):
                 item_num=total_item,
                 mode='user',
                 loss_function='log_loss',
+                batch_size=batch_size,
                 epochs=200)
 
         autoEncoder.model_load(1)
@@ -97,7 +98,7 @@ def calculate_cluster_top(allData, total_usr, total_item, NUM_CLUSTER=10):
 
         test_out_upper_quartile = np.asarray(test_out_upper_quartile)
 
-        rank_upper_quartile = test_out_upper_quartile.argsort()[::-1][:10]
+        rank_upper_quartile = test_out_upper_quartile.argsort()[::-1][:30]
 
         cluster_top.append(rank_upper_quartile)
 

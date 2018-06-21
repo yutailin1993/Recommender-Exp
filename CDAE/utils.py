@@ -30,6 +30,25 @@ def gen_train_test(inputs, ratio=0.3):
     return train_rating, train_indices, test_indices
 
 
+def hit_recall(topN, indices, N=5):
+    """Calculate Recall
+
+    -- Args --:
+        topN: reconstruct top N recommand
+        indices: list of items that user have seen in test set
+
+    -- Return --:
+        recall: most popular prdiction recall
+    """
+
+    topN_set = set(topN[:N])
+    indice_set = set(indices[:N])
+
+    hit_count = len(topN_set & indice_set)
+
+    return hit_count / min(N, len(indice_set))
+
+
 def recall_at_N(topN, indices, N=5):
     """Calculate Recall
 
@@ -44,12 +63,12 @@ def recall_at_N(topN, indices, N=5):
     effect_sum = 0
     for i in range(topN.shape[0]):
         topN_set_i = set(topN[i][:N])
-        indice_set_i = set(indices[i][:N])
+        indice_set_i = set(indices[i])
         hit_count = 0
 
         if len(indices[i]) != 0:
             hit_count = len(topN_set_i & indice_set_i)
-            batch_recall_sum += hit_count / len(indice_set_i)
+            batch_recall_sum += hit_count / min(N, len(indice_set_i))
             effect_sum += 1
 
     try:
