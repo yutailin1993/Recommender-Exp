@@ -206,7 +206,7 @@ class AutoEncoder(object):
 
                 total_loss += loss
 
-                if epoch % (self.epochs*0.01) == 0 and epoch > 0:
+                if epoch % (self.epochs*0.1) == 0 and epoch > 0:
                     top10 = get_topN(recon, train_indices[start: start+valid_num], N=10)
                     top5 = get_topN(recon, train_indices[start: start+valid_num], N=5)
                     iAP_5 = avg_precision(top5, test_indices[start: start+valid_num])
