@@ -45,8 +45,10 @@ def hit_recall(topN, indices, N=5):
     indice_set = set(indices[:N])
 
     hit_count = len(topN_set & indice_set)
-
-    return hit_count / min(N, len(indice_set))
+    try:
+        return hit_count / min(N, len(indice_set))
+    except ZeroDivisionError:
+        return None
 
 
 def recall_at_N(topN, indices, N=5):
