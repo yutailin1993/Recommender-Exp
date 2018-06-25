@@ -61,7 +61,8 @@ def get_cluster_attributes(cluster_model, NUM_CLUSTER=10):
     return label_index, label_count
 
 
-def calculate_cluster_top(allData, total_usr, total_item, NUM_CLUSTER=10, batch_size=1):
+def calculate_cluster_top(allData, total_usr, total_item,
+        NUM_CLUSTER=10, batch_size=1, weight=1, denoising=True):
     cluster_top = []
 
     for c in range(NUM_CLUSTER):
@@ -74,6 +75,13 @@ def calculate_cluster_top(allData, total_usr, total_item, NUM_CLUSTER=10, batch_
         train_matrix_c = np.take(allData['TRAIN_MATRIX'], train_user_c, axis=0)
         test_matrix_c = np.take(allData['TEST_MATRIX_NOW'], test_user_c, axis=0)
 
+        if weight != 1:
+            top_n = np.count_nonzero(train_matrix_c, axis=0).argsort()[::-1][:30]
+            with_weight = True
+        else:
+            top_n = None
+            with_weight = False
+
         tf.reset_default_graph()
 
         autoEncoder = AutoEncoder(
@@ -81,12 +89,14 @@ def calculate_cluster_top(allData, total_usr, total_item, NUM_CLUSTER=10, batch_
                 item_num=total_item,
                 mode='user',
                 loss_function='log_loss',
+                with_weight=with_weight,
+                denoising=denoising,
                 batch_size=batch_size,
-                epochs=200)
+                epochs=100)
 
         autoEncoder.model_load(1)
 
-        autoEncoder.train_all(rating=train_matrix_c, train_idents=train_user_c)
+        autoEncoder.train_all(rating=train_matrix_c, train_idents=train_user_c, topN=top_n, weight=weight)
 
         test_out = autoEncoder.predict(test_matrix_c, test_user_c)
 
