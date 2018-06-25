@@ -12,7 +12,7 @@ class AutoEncoder(object):
     '''
 
     def __init__(
-            self, user_num, item_num, mode, with_weights=False,
+            self, user_num, item_num, mode, with_weight=False, denoising=True,
             dropout_rate=0.2, lr=0.01, hidden_units=20, epochs=100, 
             batch_size=64, loss_function='rmse', b1=0.5, optimizer='adagrad'):
         '''
@@ -35,12 +35,13 @@ class AutoEncoder(object):
         self.user_num = user_num
         self.item_num = item_num
         self.mode = mode
+        self.denoising = denoising
         self.dropout_rate = dropout_rate
         self.b1 = b1
         self.lr = lr
         self.epochs = epochs
         self.batch_size = batch_size
-        self.with_weights = with_weights
+        self.with_weight = with_weight
         self.hidden_units = hidden_units
         self.loss_function = loss_function
         self.optimizer = optimizer
@@ -89,7 +90,10 @@ class AutoEncoder(object):
         # denoising
         # ======================================================================
         with tf.variable_scope('denoising'):
-            self.noise_input = tf.nn.dropout(self.input, 1-self.dropout_rate)
+            if self.denoising:
+                self.noise_input = tf.nn.dropout(self.input, 1-self.dropout_rate)
+            else:
+                self.noise_input = self.input
 
         # ======================================================================
         # Autoencoder
@@ -114,18 +118,21 @@ class AutoEncoder(object):
 
     def _build_loss(self):
         with tf.variable_scope('loss'):
+            self.filter = tf.placeholder(tf.float32, shape=[None], name='filter')
+
             if self.loss_function == 'rmse':
+                self.filter_loss = self.filter*(self.target-self.decode)
                 self.loss = tf.sqrt(
-                        tf.reduce_mean(tf.pow(self.target-self.decode, 2)))
+                        tf.reduce_mean(tf.pow(self.filter_loss, 2)))
 
             elif self.loss_function == 'cross_entropy':
-                self.loss = tf.reduce_mean(
-                        tf.reduce_sum(-self.target*tf.log(self.decode) - \
-                                (1-self.target)*tf.log(1-self.decode),
-                                reduction_indices=1))
+                cross_entropy = -self.target*tf.log(self.decode) - \
+                        (1-self.target)*tf.log(1-self.decode)
 
-                # self.loss = tf.reduce_sum(-self.target*tf.log(self.decode) - \
-                #         (1-self.target)*tf.log(self.decode))
+                self.filter_loss = self.filter * cross_entropy
+
+                self.loss = tf.reduce_mean(
+                        tf.reduce_sum(self.filter_loss, reduction_indices=1))
 
             elif self.loss_function == 'log_loss':
                 self.loss = tf.losses.log_loss(self.target, self.decode)
@@ -168,9 +175,26 @@ class AutoEncoder(object):
     def _init_vars(self):
         self.sess.run(tf.global_variables_initializer())
 
-    def train(self, rating, train_idents, train_indices=None, test_indices=None):
+    def train(self, rating, train_idents,
+              train_indices=None, test_indices=None, topN=None, weight=None):
+
         num_batch = len(train_idents) // self.batch_size
         train_idents_idx = [k for k in range(len(train_idents))]
+
+        if (topN is not None and weight is None) or (weight is not None and topN is None):
+            raise ValueError
+
+        if topN is not None:
+            filter_ = np.ones(self.item_num, dtype=np.float32)
+            for i in range(filter_.shape[0]):
+                if weight > 1:
+                    if i in topN:
+                        filter_[i] = weight
+                else:
+                    if i not in topN:
+                        filter_[i] = weight
+        else:
+            filter_ = np.ones(self.item_num, dtype=np.int8)
 
         for epoch in trange(self.epochs):
             total_loss = 0
@@ -202,6 +226,7 @@ class AutoEncoder(object):
                             self.input: input_,
                             self.target: target_,
                             self.ident: idents_,
+                            self.filter: filter_,
                         })
 
                 total_loss += loss
@@ -231,13 +256,28 @@ class AutoEncoder(object):
                 self.log['recall@5'].append(sum(recall_at_5)/len(recall_at_5))
                 self.log['recall@10'].append(sum(recall_at_10)/len(recall_at_10))
 
-    def train_all(self, rating, train_idents):
+    def train_all(self, rating, train_idents, topN=None, weight=None):
         """Train with all rating without validation
 
         """
 
         num_batch = len(train_idents) // self.batch_size
         train_idents_idx = [k for k in range(len(train_idents))]
+        
+        if (topN is not None and weight is None) or (weight is not None and topN is None):
+            raise ValueError
+        
+        if topN is not None:
+            filter_ = np.ones(self.item_num, dtype=np.float32)
+            for i in range(filter_.shape[0]):
+                if weight > 1:
+                    if i in topN:
+                        filter_[i] = weight
+                else:
+                    if i not in topN:
+                        filter_[i] = weight
+        else:
+            filter_ = np.ones(self.item_num, dtype=np.int8)
 
         for epoch in trange(self.epochs):
             total_loss = 0
@@ -262,6 +302,7 @@ class AutoEncoder(object):
                             self.input: input_,
                             self.target: target_,
                             self.ident: idents_,
+                            self.filter: filter_,
                         })
 
                 total_loss += loss
