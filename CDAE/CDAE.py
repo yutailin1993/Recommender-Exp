@@ -264,8 +264,9 @@ class AutoEncoder(object):
         num_batch = len(train_idents) // self.batch_size
         train_idents_idx = [k for k in range(len(train_idents))]
         
-        if (topN is not None and weight is None) or (weight is not None and topN is None):
-            raise ValueError
+        if topN is not None:
+            if weight is None or weight == 1:
+                raise ValueError
         
         if topN is not None:
             filter_ = np.ones(self.item_num, dtype=np.float32)

@@ -6,15 +6,24 @@ import tensorflow as tf
 from CDAE import AutoEncoder
 
 
-def count_score(top_lists, label_count, alpha=10):
+def count_score(top_lists, label_count, total_usr, exponent=1.0001, alpha=100):
+    """
+    Use Zipf's distribution to calculate score.
+    """
     score_map = {}
+    N = len(top_lists[0])
+
+    constant = 0
+    for k in range(N):
+        constant += 1 / (k+1)**exponent
 
     for list_id, i in enumerate(top_lists):
         for idx, j in enumerate(i):
+            zipf_score = 1 / (idx+1)**exponent / constant
             if j not in score_map:
-                score_map[j] = label_count[list_id] * alpha / (idx+1)
+                score_map[j] = alpha * zipf_score * (label_count[list_id] / total_usr)
             else:
-                score_map[j] += label_count[list_id] * alpha / (idx+1)
+                score_map[j] += alpha * zipf_score * (label_count[list_id] / total_usr)
 
     return score_map
 
