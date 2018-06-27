@@ -117,7 +117,7 @@ def calculate_cluster_top(allData, total_usr, total_item,
 
         test_out_upper_quartile = np.asarray(test_out_upper_quartile)
 
-        rank_upper_quartile = test_out_upper_quartile.argsort()[::-1][:30]
+        rank_upper_quartile = test_out_upper_quartile.argsort()[::-1][:1000]
 
         cluster_top.append(rank_upper_quartile)
 
