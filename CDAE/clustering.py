@@ -71,8 +71,13 @@ def get_cluster_attributes(cluster_model, NUM_CLUSTER=10):
 
 
 def calculate_cluster_top(allData, total_usr, total_item,
-        NUM_CLUSTER=10, batch_size=1, weight=1, denoising=True):
+        NUM_CLUSTER=10, batch_size=1, weight=1, denoise_function=None):
     cluster_top = []
+
+    if denoise_function is not None:
+        denoising = False
+    else:
+        denoising = True
 
     for c in range(NUM_CLUSTER):
         train_user_c = allData['LABEL_INDEX'][c]
@@ -97,8 +102,9 @@ def calculate_cluster_top(allData, total_usr, total_item,
                 user_num=total_usr,
                 item_num=total_item,
                 mode='user',
-                loss_function='log_loss',
+                loss_function='cross_entropy',
                 with_weight=with_weight,
+                denoise_function=denoise_function,
                 denoising=denoising,
                 batch_size=batch_size,
                 epochs=100)
