@@ -71,7 +71,7 @@ def get_cluster_attributes(cluster_model, NUM_CLUSTER=10):
 
 
 def calculate_cluster_top(allData, total_usr, total_item,
-        NUM_CLUSTER=10, batch_size=1, weight=1, denoise_function=None):
+        NUM_CLUSTER=10, batch_size=1, weight=1, denoise_function=None, loss_function='cross_entropy'):
     cluster_top = []
 
     if denoise_function is not None:
@@ -102,7 +102,7 @@ def calculate_cluster_top(allData, total_usr, total_item,
                 user_num=total_usr,
                 item_num=total_item,
                 mode='user',
-                loss_function='cross_entropy',
+                loss_function=loss_function,
                 with_weight=with_weight,
                 denoise_function=denoise_function,
                 denoising=denoising,
