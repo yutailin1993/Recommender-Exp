@@ -13,7 +13,7 @@ class AutoEncoder(object):
 
     def __init__(
             self, user_num, item_num, mode, with_weight=False, denoising=True,
-            dropout_rate=0.2, lr=0.01, hidden_units=20, epochs=100, 
+            dropout_rate=0.2, lr=0.01, hidden_units=20, epochs=100, denoise_function='dropout',
             batch_size=64, loss_function='rmse', b1=0.5, optimizer='adagrad'):
         '''
         -- Args --
@@ -40,6 +40,7 @@ class AutoEncoder(object):
         self.b1 = b1
         self.lr = lr
         self.epochs = epochs
+        self.denoise_function = denoise_function
         self.batch_size = batch_size
         self.with_weight = with_weight
         self.hidden_units = hidden_units
@@ -91,9 +92,21 @@ class AutoEncoder(object):
         # ======================================================================
         with tf.variable_scope('denoising'):
             if self.denoising:
-                self.noise_input = tf.nn.dropout(self.input, 1-self.dropout_rate)
+                if self.denoise_function == 'maskout':
+                    mask = tf.cast(
+                            tf.greater(
+                                tf.random_uniform((self.item_num,)),
+                                1-self.dropout_rate),
+                            tf.int8)
+                    in_ = tf.cast(self.input, tf.int8)
+                    self.noise_input = tf.cast(tf.bitwise.bitwise_xor(in_, mask), tf.float32)
+
+                elif self.denoise_function == 'dropout':
+                    self.noise_input = tf.nn.dropout(self.input, 1-self.dropout_rate)
+                else:
+                    raise NotImplementedError
             else:
-                self.noise_input = self.input
+                self.noise_input = tf.cast(self.input, tf.float32)
 
         # ======================================================================
         # Autoencoder
