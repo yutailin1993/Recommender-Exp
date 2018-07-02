@@ -75,9 +75,9 @@ def calculate_cluster_top(allData, total_usr, total_item,
     cluster_top = []
 
     if denoise_function is not None:
-        denoising = False
-    else:
         denoising = True
+    else:
+        denoising = False
 
     for c in range(NUM_CLUSTER):
         train_user_c = allData['LABEL_INDEX'][c]
