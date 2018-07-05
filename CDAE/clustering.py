@@ -6,10 +6,14 @@ import tensorflow as tf
 from CDAE import AutoEncoder
 
 
-def count_score(top_lists, label_count, total_usr, exponent=1.0001, alpha=100):
+def count_score(top_lists, label_count, total_usr, item_distribution, exponent=1.0001, alpha=100):
     """
-    Use Zipf's distribution to calculate score.
+    Use ensemble method to calculate scores.
+    If items number is large enough use Zipf's distribution to count score.
+    Else use their items watched distribution to count score.
     """
+    assert len(top_lists) == len(item_distribution)
+
     score_map = {}
     N = len(top_lists[0])
 
@@ -18,12 +22,33 @@ def count_score(top_lists, label_count, total_usr, exponent=1.0001, alpha=100):
         constant += 1 / (k+1)**exponent
 
     for list_id, i in enumerate(top_lists):
-        for idx, j in enumerate(i):
-            zipf_score = 1 / (idx+1)**exponent / constant
-            if j not in score_map:
-                score_map[j] = alpha * zipf_score * (label_count[list_id] / total_usr)
-            else:
-                score_map[j] += alpha * zipf_score * (label_count[list_id] / total_usr)
+        if len(item_distribution[list_id]) > N:
+            # Use Zipf's distribution
+            total_watched = sum(item_distribution[list_id])
+
+            for idx, j in enumerate(i):
+                zipf_score = 1 / (idx+1)**exponent / constant
+                if j not in score_map:
+                    score_map[j] = total_watched * zipf_score * (label_count[list_id] / total_usr)
+                else:
+                    score_map[j] += total_watched * zipf_score * (label_count[list_id] / total_usr)
+
+        else:
+            # Use cluster's item watched distribution
+            total_watched = sum(item_distribution[list_id])
+
+            watched_count = 0
+            for idx, j in enumerate(i):
+                if watched_count >= total_watched:
+                    break
+
+                distribution_score = 1 * item_distribution[list_id][idx]/total_watched
+                watched_count += item_distribution[list_id][idx]
+
+                if j not in score_map:
+                    score_map[j] = total_watched * distribution_score * (label_count[list_id] / total_usr)
+                else:
+                    score_map[j] += total_watched * distribution_score * (label_count[list_id] / total_usr)
 
     return score_map
 
@@ -70,8 +95,32 @@ def get_cluster_attributes(cluster_model, NUM_CLUSTER=10):
     return label_index, label_count
 
 
+def get_distribution(allData, NUM_CLUSTER=10):
+    item_distribution = []
+
+    for c in range(NUM_CLUSTER):
+        test_user_c = [x for x in allData['LABEL_INDEX'][c] if x in allData['TEST_USER_NOW']]
+
+        if len(test_user_c) == 0:
+            continue
+
+        item_count = []
+        test_matrix_c = np.take(allData['TEST_MATRIX_NOW'], test_user_c, axis=0)
+
+        counts = np.count_nonzero(test_matrix_c, axis=0)
+
+        for idx, i in enumerate(counts):
+            if i > 0:
+                item_count.append(i)
+
+        item_distribution.append(sorted(item_count, reverse=True))
+
+    return item_distribution
+
+
 def calculate_cluster_top(allData, total_usr, total_item,
-        NUM_CLUSTER=10, batch_size=1, weight=1, denoise_function=None, loss_function='cross_entropy'):
+        NUM_CLUSTER=10, batch_size=1, weight=1, denoise_function=None,
+        loss_function='cross_entropy', N=30):
     cluster_top = []
 
     if denoise_function is not None:
@@ -90,7 +139,7 @@ def calculate_cluster_top(allData, total_usr, total_item,
         test_matrix_c = np.take(allData['TEST_MATRIX_NOW'], test_user_c, axis=0)
 
         if weight != 1:
-            top_n = np.count_nonzero(train_matrix_c, axis=0).argsort()[::-1][:30]
+            top_n = np.count_nonzero(train_matrix_c, axis=0).argsort()[::-1][:100]
             with_weight = True
         else:
             top_n = None
@@ -123,7 +172,7 @@ def calculate_cluster_top(allData, total_usr, total_item,
 
         test_out_upper_quartile = np.asarray(test_out_upper_quartile)
 
-        rank_upper_quartile = test_out_upper_quartile.argsort()[::-1][:1000]
+        rank_upper_quartile = test_out_upper_quartile.argsort()[::-1][:N]
 
         cluster_top.append(rank_upper_quartile)
 
