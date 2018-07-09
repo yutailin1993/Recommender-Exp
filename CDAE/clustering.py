@@ -15,41 +15,41 @@ def count_score(top_lists, label_count, total_usr, item_distribution, exponent=1
     assert len(top_lists) == len(item_distribution)
 
     score_map = {}
-    # N = len(top_lists[0])
+    N = len(top_lists[0])
 
-    # constant = 0
-    # for k in range(N):
-    #     constant += 1 / (k+1)**exponent
+    constant = 0
+    for k in range(N):
+        constant += 1 / (k+1)**exponent
 
     for list_id, i in enumerate(top_lists):
-        # if len(item_distribution[list_id]) > 100000000000:
-        #     # Use Zipf's distribution
-        #     total_watched = sum(item_distribution[list_id])
+        if len(item_distribution[list_id]) > 1000:
+            # Use Zipf's distribution
+            total_watched = sum(item_distribution[list_id])
 
-        #     for idx, j in enumerate(i):
-        #         zipf_score = 1 / (idx+1)**exponent / constant
-        #         if j not in score_map:
-        #             score_map[j] = total_watched * zipf_score * (label_count[list_id] / total_usr)
-        #         else:
-        #             score_map[j] += total_watched * zipf_score * (label_count[list_id] / total_usr)
+            for idx, j in enumerate(i):
+                zipf_score = 1 / (idx+1)**exponent / constant
+                if j not in score_map:
+                    score_map[j] = total_watched * zipf_score * (label_count[list_id] / total_usr)
+                else:
+                    score_map[j] += total_watched * zipf_score * (label_count[list_id] / total_usr)
 
-        # else:
+        else:
 
-        # Use cluster's item watched distribution
-        total_watched = sum(item_distribution[list_id])
+            # Use cluster's item watched distribution
+            total_watched = sum(item_distribution[list_id])
 
-        watched_count = 0
-        for idx, j in enumerate(i):
-            if watched_count >= total_watched:
-                break
+            watched_count = 0
+            for idx, j in enumerate(i):
+                if watched_count >= total_watched:
+                    break
 
-            distribution_score = 1 * item_distribution[list_id][idx]/total_watched
-            watched_count += item_distribution[list_id][idx]
+                distribution_score = 1 * item_distribution[list_id][idx]/total_watched
+                watched_count += item_distribution[list_id][idx]
 
-            if j not in score_map:
-                score_map[j] = total_watched * distribution_score * (label_count[list_id] / total_usr)
-            else:
-                score_map[j] += total_watched * distribution_score * (label_count[list_id] / total_usr)
+                if j not in score_map:
+                    score_map[j] = total_watched * distribution_score * (label_count[list_id] / total_usr)
+                else:
+                    score_map[j] += total_watched * distribution_score * (label_count[list_id] / total_usr)
 
     return score_map
 
