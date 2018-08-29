@@ -121,7 +121,7 @@ def get_distribution(allData, NUM_CLUSTER=10):
 
 def calculate_cluster_top(allData, total_usr, total_item,
         NUM_CLUSTER=10, batch_size=1, weight=1, denoise_function=None,
-        loss_function='cross_entropy', N=30):
+        loss_function='cross_entropy', N=30, hidden_units=20):
     cluster_top = []
 
     if denoise_function is not None:
@@ -157,7 +157,8 @@ def calculate_cluster_top(allData, total_usr, total_item,
                 denoise_function=denoise_function,
                 denoising=denoising,
                 batch_size=batch_size,
-                epochs=100)
+                epochs=100,
+                hidden_units=hidden_units)
 
         autoEncoder.model_load(1)
 
